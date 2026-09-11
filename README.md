@@ -56,6 +56,7 @@ top-k, BF16 KV/recurrent state, 500,000-token YaRN profile, prefix caching on.
 | --- | ---: | ---: | ---: | ---: |
 | NVIDIA BF16-side + NVFP4 MTP | 2253.28 | 20.36 | 2177.88 | 21.21 |
 | **NVIDIA FP8-side + NVFP4 MTP** | **2303.64** | **24.77** | **2129.24** | **25.92** |
+| NVIDIA FP8-side + FP8 `lm_head` + NVFP4 MTP | 2233.42 | **27.34** | **2141.79** | **28.11** |
 | RadixArk FP8-side + NVFP4 MTP | 2341.93 | 26.05 | 2154.00 | 26.86 |
 
 Throughput units are tokens/s. The NVIDIA hybrid's three 100K runs averaged
@@ -79,6 +80,48 @@ not establish a reliable quality difference; report the observed 144-148 range
 rather than selecting a single run. Tool calling was 4/4 and long-context
 retrieval was 6/6 in all three uploaded-checkpoint runs. Validate
 application-specific prompts before replacing a quality-first setup.
+
+### Experimental block-FP8 `lm_head`
+
+The optional `Dockerfile.fp8-lm-head` and
+`recipes/nvidia-hybrid/quantize_lm_head_fp8.py` extend the same checkpoint with
+a 128x128 blockwise FP8 E4M3 final projection. The converter writes an isolated
+destination, keeps the source checkpoint unchanged, updates the ModelOpt mixed
+metadata and safetensors index, and emits a separate 65,536-row BF16 draft head.
+The MTP transformer and experts remain NVFP4; only its small reduced-vocabulary
+draft output head remains BF16.
+
+```bash
+cp -al \
+  /data/models/Qwen3.8-Flash-Next-NVIDIA-FP8-Hybrid-MTPNVFP4 \
+  /data/models/Qwen3.8-Flash-Next-NVIDIA-FP8-Hybrid-MTPNVFP4-FP8Head
+
+python3 recipes/nvidia-hybrid/quantize_lm_head_fp8.py \
+  /data/models/Qwen3.8-Flash-Next-NVIDIA-FP8-Hybrid-MTPNVFP4-FP8Head \
+  --draft-vocab src/draft_vocab_65536.npy
+
+docker build -f Dockerfile.fp8-lm-head \
+  -t nvidia-hybrid-single-spark:fp8-lm-head .
+```
+
+The pinned vLLM preview needs the companion-scale loader in
+`src/patch_fp8_lm_head.py`; this is a narrow port of the unmerged upstream
+`ParallelLMHead` block-FP8 work. Three local 162-case runs scored 147, 146 and
+148 (mean 147), including 4/4 tool calls and 6/6 long-context retrieval in every
+run. Compared with three runs of the BF16 `lm_head` profile, 141 cases always
+passed in both profiles and 11 always failed in both. The remaining differences
+were boundary cases rather than a directional regression.
+
+The measured 100K profile improved decode from 25.92 to 28.11 tok/s while
+prefill remained effectively flat (2129.24 to 2141.79 tok/s). The first 8K run
+still included runtime JIT work; its three-run mean was 2233.42/27.34 tok/s.
+Treat this as an experimental lane until the loader support lands upstream and
+validate application-specific long conversations before publishing derivative
+weights.
+
+The ready FP8-head checkpoint is published separately at
+[Shinrali/Qwen3.8-Flash-Next-NVIDIA-Hybrid-FP8-LMHead-Single-Spark](https://huggingface.co/Shinrali/Qwen3.8-Flash-Next-NVIDIA-Hybrid-FP8-LMHead-Single-Spark),
+so the earlier BF16-head checkpoint remains available and unchanged.
 
 ## Download the ready checkpoint
 

@@ -147,3 +147,10 @@ RUN python3 /tmp/fp8_m4pad_patch.py && rm /tmp/fp8_m4pad_patch.py \
 COPY src/patch_mtp_draft_vocab.py /tmp/patch_mtp_draft_vocab.py
 COPY src/draft_vocab_65536.npy /opt/llm/draft_vocab_65536.npy
 RUN python3 /tmp/patch_mtp_draft_vocab.py ${SP}/vllm/models/qwen3_8_flash_next/nvidia/mtp.py && rm /tmp/patch_mtp_draft_vocab.py
+
+# --- 11. Optional block-FP8 lm_head -----------------------------------------------------
+# Port the ParallelLMHead companion-scale loader from vllm#41000 and pass the checkpoint's
+# quantization config into both Qwen3Next head constructors. It is inert for a BF16 head;
+# the hybrid metadata scanner only dispatches lm_head when FP8 weight + scale tensors exist.
+COPY src/patch_fp8_lm_head.py /tmp/patch_fp8_lm_head.py
+RUN python3 /tmp/patch_fp8_lm_head.py ${SP} && rm /tmp/patch_fp8_lm_head.py

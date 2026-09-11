@@ -31,17 +31,35 @@ def _dv_compute_logits(self, hidden_states: torch.Tensor, spec_step_idx: int = 0
         import numpy as _np
 
         head = self.lm_head  # the target's lm_head, shared in by the proposer
-        w = head.weight
         ids = torch.from_numpy(_np.load(_dv_os.environ["VLLM_MTP_DRAFT_VOCAB"]).astype(_np.int64))
-        ids = ids.to(w.device)
-        vocab = int(getattr(self.logits_processor, "org_vocab_size", w.shape[0]))
+        vocab = int(getattr(self.logits_processor, "org_vocab_size", head.weight.shape[0]))
         ids = ids[(ids >= 0) & (ids < vocab)]
-        wk = w.index_select(0, ids).contiguous()
+        draft_head_path = _dv_os.environ.get("VLLM_MTP_DRAFT_HEAD")
+        if draft_head_path:
+            from safetensors import safe_open as _dv_safe_open
+
+            with _dv_safe_open(draft_head_path, framework="pt", device="cpu") as _dv_file:
+                wk = _dv_file.get_tensor("weight")
+            if wk.shape[0] != ids.numel() or wk.shape[1] != head.weight.shape[1]:
+                raise RuntimeError(
+                    f"MTP reduced draft head shape {tuple(wk.shape)} does not match "
+                    f"ids={ids.numel()} hidden={head.weight.shape[1]}"
+                )
+            wk = wk.to(hidden_states.device)
+        else:
+            w = head.weight
+            if w.element_size() == 1:
+                raise RuntimeError(
+                    "FP8 lm_head requires VLLM_MTP_DRAFT_HEAD with a BF16 reduced head"
+                )
+            ids = ids.to(w.device)
+            wk = w.index_select(0, ids).contiguous()
+        ids = ids.to(wk.device)
         st = self._dv_state = (ids, wk, vocab)
         _dv_logger.info(
             "MTP reduced draft vocabulary: %d of %d rows (%.0f -> %.0f MiB per draft step)",
             ids.numel(), vocab,
-            w.shape[0] * w.shape[1] * w.element_size() / 2**20,
+            head.weight.shape[0] * head.weight.shape[1] * head.weight.element_size() / 2**20,
             wk.numel() * wk.element_size() / 2**20,
         )
     ids, wk, vocab = st
@@ -58,8 +76,15 @@ if _dv_os.environ.get("VLLM_MTP_DRAFT_VOCAB"):
 
 src = open(TARGET).read()
 if MARK in src:
-    print("  draft-vocab hook already installed"); sys.exit(0)
-assert "class Qwen3_8FlashNextMTP(" in src, "MTP class not found"
-open(TARGET, "w").write(src.rstrip("\n") + HOOK)
+    if "VLLM_MTP_DRAFT_HEAD" in src:
+        print("  draft-vocab hook with FP8-head support already installed")
+        sys.exit(0)
+    hook_start = src.index("# --- qwen38-flash-dgx: reduced draft vocabulary")
+    src = src[:hook_start].rstrip("\n") + HOOK
+    print("  existing draft-vocab hook upgraded for FP8 lm_head")
+else:
+    assert "class Qwen3_8FlashNextMTP(" in src, "MTP class not found"
+    src = src.rstrip("\n") + HOOK
+open(TARGET, "w").write(src)
 import ast; ast.parse(open(TARGET).read())
 print("  draft-vocab hook INSTALLED in", TARGET, "(inert unless VLLM_MTP_DRAFT_VOCAB is set)")

@@ -23,6 +23,8 @@ services:
       VLLM_QSA_DET_LIB: /opt/llm/kernel-det/_C_det.so
       VLLM_QSA_EXACT_TOPK: "0"
       VLLM_MTP_DRAFT_VOCAB: /opt/llm/draft_vocab_65536.npy
+      # Required only when the target checkpoint's lm_head is block-FP8.
+      VLLM_MTP_DRAFT_HEAD: /model/mtp_draft_head_65536.safetensors
       VLLM_FP8_PAD_M4: "0"
       # Retargeted hybrid shim dispatches NVIDIA ModelOptMixedConfig side
       # layers through vLLM's proven block-FP8 Fp8Config loader.

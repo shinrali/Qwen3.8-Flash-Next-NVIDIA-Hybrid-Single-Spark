@@ -1,0 +1,26 @@
+# Thin experimental layer over the already verified NVIDIA hybrid image.
+# The base image remains present and unchanged for immediate rollback.
+ARG BASE_IMAGE=nvidia-hybrid-single-spark:latest
+FROM ${BASE_IMAGE}
+
+ARG SP=/usr/local/lib/python3.12/dist-packages
+
+# modelopt.py in the base image already imports this module at startup.
+COPY src/vllm_fp8_hybrid_modelopt.py ${SP}/vllm_fp8_hybrid_modelopt.py
+COPY src/patch_hybrid_mixed_config.py /tmp/patch_hybrid_mixed_config.py
+RUN python3 /tmp/patch_hybrid_mixed_config.py \
+      ${SP}/vllm_fp8_hybrid_modelopt.py \
+ && rm /tmp/patch_hybrid_mixed_config.py
+
+# Replace the previously appended reduced-vocabulary hook with the version that
+# can load a separate BF16 65K draft head when the target lm_head is FP8.
+COPY src/patch_mtp_draft_vocab.py /tmp/patch_mtp_draft_vocab.py
+RUN python3 /tmp/patch_mtp_draft_vocab.py \
+      ${SP}/vllm/models/qwen3_8_flash_next/nvidia/mtp.py \
+ && rm /tmp/patch_mtp_draft_vocab.py
+
+# ParallelLMHead block-scale loader plus quant_config plumbing for both target
+# and draft constructors. This is inert for checkpoints whose lm_head is BF16.
+COPY src/patch_fp8_lm_head.py /tmp/patch_fp8_lm_head.py
+RUN python3 /tmp/patch_fp8_lm_head.py ${SP} \
+ && rm /tmp/patch_fp8_lm_head.py
