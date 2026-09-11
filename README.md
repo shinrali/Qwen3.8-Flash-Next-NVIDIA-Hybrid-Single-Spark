@@ -65,14 +65,18 @@ GiB of weights and profiled a 19.73 GiB / 721,556-token KV pool.
 ### Local quality regression
 
 This is a private 162-case deployment regression suite, not an official Qwen,
-NVIDIA, or community benchmark. The uploaded NVIDIA FP8-side checkpoint scored
-144/162; the paired NVIDIA BF16-side and RadixArk hybrid comparison profiles
-each scored 147/162. The NVIDIA comparison had five losses and two gains after
-FP8-side conversion, with an exact paired two-sided p-value of 0.453125. This
-sample does not establish a statistically reliable quality difference, but it
-also does not justify reporting 147/162 for the uploaded checkpoint. Tool
-calling was 4/4 and long-context retrieval was 6/6 in all three profiles.
-Validate application-specific prompts before replacing a quality-first setup.
+NVIDIA, or community benchmark. Two independent runs of the uploaded NVIDIA
+FP8-side checkpoint scored 144/162 and 146/162 (mean 145/162); the paired NVIDIA
+BF16-side and RadixArk hybrid comparison profiles each scored 147/162. In the
+latest 146-point run, each 147-point comparison differed by only three
+discordant cases: two baseline-only passes and one uploaded-checkpoint-only
+pass (exact paired two-sided p=1.0). The two uploaded-checkpoint runs themselves
+changed four MMLU outcomes (three gains and one loss), showing that this
+concurrent MTP runtime is not strictly byte-deterministic even at temperature
+zero. This sample neither establishes a reliable quality loss nor supports
+reporting 147/162 for the uploaded checkpoint. Tool calling was 4/4 and
+long-context retrieval was 6/6 in both uploaded-checkpoint runs. Validate
+application-specific prompts before replacing a quality-first setup.
 
 ## Download the ready checkpoint
 
