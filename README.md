@@ -65,17 +65,19 @@ GiB of weights and profiled a 19.73 GiB / 721,556-token KV pool.
 ### Local quality regression
 
 This is a private 162-case deployment regression suite, not an official Qwen,
-NVIDIA, or community benchmark. Two independent runs of the uploaded NVIDIA
-FP8-side checkpoint scored 144/162 and 146/162 (mean 145/162); the paired NVIDIA
-BF16-side and RadixArk hybrid comparison profiles each scored 147/162. In the
-latest 146-point run, each 147-point comparison differed by only three
-discordant cases: two baseline-only passes and one uploaded-checkpoint-only
-pass (exact paired two-sided p=1.0). The two uploaded-checkpoint runs themselves
-changed four MMLU outcomes (three gains and one loss), showing that this
-concurrent MTP runtime is not strictly byte-deterministic even at temperature
-zero. This sample neither establishes a reliable quality loss nor supports
-reporting 147/162 for the uploaded checkpoint. Tool calling was 4/4 and
-long-context retrieval was 6/6 in both uploaded-checkpoint runs. Validate
+NVIDIA, or community benchmark. Three repeated runs of the uploaded NVIDIA
+FP8-side checkpoint scored 144/162, 146/162, and 148/162 (mean 146/162); the
+paired NVIDIA BF16-side and RadixArk hybrid comparison profiles each scored
+147/162. Pass/fail status was identical for 156/162 cases across all three
+runs: 143 always passed, 13 always failed, and only six MMLU boundary cases
+varied. In the latest 148-point run, each 147-point comparison had five
+discordant cases: three uploaded-checkpoint-only passes and two baseline-only
+passes (exact paired two-sided p=1.0). Only 107/162 raw outputs were
+byte-identical across all three runs, showing that this concurrent MTP runtime
+is not strictly byte-deterministic even at temperature zero. This sample does
+not establish a reliable quality difference; report the observed 144-148 range
+rather than selecting a single run. Tool calling was 4/4 and long-context
+retrieval was 6/6 in all three uploaded-checkpoint runs. Validate
 application-specific prompts before replacing a quality-first setup.
 
 ## Download the ready checkpoint
