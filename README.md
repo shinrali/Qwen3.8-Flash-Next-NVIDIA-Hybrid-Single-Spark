@@ -1,3 +1,21 @@
+---
+license: other
+license_name: NVIDIA Open Model License
+license_link: https://www.nvidia.com/en-us/agreements/enterprise-software/nvidia-open-model-license/
+base_model:
+  - nvidia/Qwen3.8-Flash-Next-NVFP4
+library_name: vllm
+pipeline_tag: text-generation
+tags:
+  - qwen3.8
+  - dgx-spark
+  - nvfp4
+  - fp8
+  - modelopt
+  - vllm
+  - quantization
+---
+
 # Qwen3.8-Flash-Next NVIDIA Hybrid Single Spark
 
 Run Qwen3.8-Flash-Next on one NVIDIA DGX Spark using the official NVIDIA
@@ -130,6 +148,11 @@ retargets its owner class to `ModelOptMixedPrecisionConfig`.
 This is an independent integration and validation recipe, not an NVIDIA
 official repository. NVIDIA, DGX, and related names are trademarks of their
 respective owners.
+
+The code and patches in this repository retain the upstream MIT license. Model
+weights are not redistributed here and remain governed by their respective
+model licenses, including the NVIDIA Open Model License and the terms stated on
+each donor model card.
 
 ---
 
