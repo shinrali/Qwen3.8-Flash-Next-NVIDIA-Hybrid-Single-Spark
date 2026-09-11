@@ -154,6 +154,11 @@ weights are not redistributed here and remain governed by their respective
 model licenses, including the NVIDIA Open Model License and the terms stated on
 each donor model card.
 
+Redistributed derivative weights include the required attribution in
+[`NOTICE`](NOTICE). A copy of the NVIDIA Open Model License and the applicable
+Qwen Community License accompany the repository as
+`NVIDIA-OPEN-MODEL-LICENSE.pdf` and `QWEN-COMMUNITY-LICENSE.txt`.
+
 ---
 
 ## Upstream documentation
