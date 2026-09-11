@@ -1,0 +1,7 @@
+FROM nvidia-hybrid-single-spark:base
+
+ARG SP=/usr/local/lib/python3.12/dist-packages
+COPY src/patch_mtp_fp8.py /tmp/patch_mtp_layer_mapping.py
+RUN python3 /tmp/patch_mtp_layer_mapping.py \
+      ${SP}/vllm/model_executor/layers/quantization/modelopt.py \
+ && rm /tmp/patch_mtp_layer_mapping.py

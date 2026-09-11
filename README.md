@@ -1,4 +1,139 @@
-# Qwen3.8-Flash-Next on a single DGX Spark (GB10)
+# Qwen3.8-Flash-Next NVIDIA Hybrid Single Spark
+
+Run Qwen3.8-Flash-Next on one NVIDIA DGX Spark using the official NVIDIA
+NVFP4 checkpoint, locally converted FP8 E4M3 dense side layers, and an NVFP4
+MTP expert graft. This repository extends
+[blazux/qwen3.8-Flash-DGX](https://github.com/blazux/qwen3.8-Flash-DGX)
+at pinned commit `bd60fcb1b492ca920f74df7462f05da7b6d98f73` and preserves its MIT
+license and contributor credits.
+
+## What this lane adds
+
+- NVIDIA's official `nvidia/Qwen3.8-Flash-Next-NVFP4` is the main checkpoint.
+- 300 dense side-layer linears are converted locally to blockwise FP8 E4M3:
+  GDN `in_proj_qkv`, `in_proj_z`, `out_proj`; QSA q/k/v/o; and shared-expert
+  gate/up/down projections.
+- `in_proj_ba`, norms, gates, hyperconnection parameters, and `lm_head` remain
+  BF16. The current blockwise-FP8 loader does not support `in_proj_ba`.
+- NVIDIA's FP8 MTP expert block is replaced with the pinned Inferact per-expert
+  NVFP4 donor. The target model still verifies speculative tokens.
+- The FP8 hybrid shim is retargeted from `ModelOptNvFp4Config` to the official
+  checkpoint's real `ModelOptMixedPrecisionConfig`.
+- PLE stays FP8 and is served from NVMe with mmap; KV cache and recurrent state
+  remain BF16 in the measured profile.
+
+No model weights are included in this repository. The source NVIDIA checkpoint
+is never overwritten: preparation uses an isolated destination and refuses to
+replace an existing one.
+
+## Measured on one DGX Spark
+
+Hardware: GB10, 128 GB unified memory. Runtime: vLLM preview pinned by the base
+repository, MTP 3, 65,536-token reduced draft vocabulary, deterministic QSA
+top-k, BF16 KV/recurrent state, 500,000-token YaRN profile, prefix caching on.
+
+| Profile | 8K prefill | 8K decode | 100K prefill | 100K decode | 162-case score |
+| --- | ---: | ---: | ---: | ---: | ---: |
+| NVIDIA BF16-side + NVFP4 MTP | 2253.28 | 20.36 | 2177.88 | 21.21 | 147/162 |
+| **NVIDIA FP8-side + NVFP4 MTP** | **2303.64** | **24.77** | **2129.24** | **25.92** | **144/162** |
+| RadixArk FP8-side + NVFP4 MTP | 2341.93 | 26.05 | 2154.00 | 26.86 | 147/162 |
+
+Throughput units are tokens/s. The NVIDIA hybrid's three 100K runs averaged
+66.88 seconds end-to-end and 33.73% weighted MTP acceptance. It loaded 73.89
+GiB of weights and profiled a 19.73 GiB / 721,556-token KV pool.
+
+The 3-point quality difference against the BF16-side NVIDIA baseline was not
+statistically reliable in this sample (5 losses, 2 gains, exact paired
+two-sided p=0.453125), but its direction matters: validate your own production
+prompts before replacing a quality-first configuration. Tool calling was 4/4
+and long-context retrieval was 6/6 in all three profiles.
+
+## Build
+
+Build the pinned upstream base, add the NVFP4 MTP dispatch patch, and then
+retarget the FP8-side shim:
+
+```bash
+docker build -t nvidia-hybrid-single-spark:base .
+docker build -f Dockerfile.nvidia-nvfp4mtp \
+  -t nvidia-hybrid-single-spark:mtp .
+docker build -f Dockerfile.nvidia-hybrid \
+  -t nvidia-hybrid-single-spark:latest .
+```
+
+## Prepare the checkpoint
+
+Download the official NVIDIA checkpoint and the pinned Inferact donor first.
+The donor file must be named `nvfp4_experts_mtp.safetensors`; the preparation
+script verifies SHA-256
+`0d44e6d705d2313c713e60114e56874adf358ed5f646dc8704bb5be15f5ddbf7`.
+
+```bash
+export MODEL_ROOT=/data/models
+
+# 1. Hard-link the NVIDIA checkpoint into an isolated working copy and convert
+#    the 300 supported side linears to blockwise FP8.
+recipes/nvidia-hybrid/prepare-nvidia-hybrid.sh
+
+# 2. Remove NVIDIA's FP8 MTP expert tensors and graft the NVFP4 donor.
+python3 recipes/nvidia-hybrid/prepare_nvidia_fp8side_nvfp4_mtp.py
+
+# 3. Restore the scale metadata contract used by the proven Fp8Config shim.
+export FINAL_MODEL_DIR="$MODEL_ROOT/Qwen3.8-Flash-Next-NVIDIA-FP8-Hybrid-MTPNVFP4"
+python3 recipes/nvidia-hybrid/rewrite_fp8_side_scales_shim.py
+```
+
+The first step requires hard-link support and about 13 GiB for rewritten side
+shards. The second step requires at least 64 GiB free while repacking the mixed
+PLE/MTP shard. Do not point any destination variable at your original model.
+
+## Run
+
+```bash
+export FINAL_MODEL_DIR=/data/models/Qwen3.8-Flash-Next-NVIDIA-FP8-Hybrid-MTPNVFP4
+export CACHE_DIR=/data/cache/nvidia-hybrid-single-spark
+export API_KEY_FILE=/run/secrets/qwen-api-key
+docker compose -f recipes/nvidia-hybrid/compose.example.yaml up -d
+```
+
+The example publishes port `30000`, serves model alias `qwen38-flash-next`,
+uses `restart: "no"`, and enables a 500K YaRN context profile. Watch memory
+headroom closely: the measured host had about 12 GiB available after startup.
+
+## Why not native `FP8_PB_WO` dispatch?
+
+The quant metadata resolver correctly identifies the 300 side layers, but the
+pinned preview combines a legacy `MergedColumnParallelLinear.load_weights`
+path with a newer parameter contract and fails while loading a fused layer:
+
+```text
+AttributeError: 'MergedColumnParallelLinear' object has no attribute 'data'
+```
+
+This lane therefore reuses the proven block-FP8 `Fp8Config` loader and only
+retargets its owner class to `ModelOptMixedPrecisionConfig`.
+
+## Related work and credits
+
+- [blazux/qwen3.8-Flash-DGX](https://github.com/blazux/qwen3.8-Flash-DGX):
+  complete single-Spark baseline, PLE mmap, prefix-cache/QSA fixes, FP8-side
+  hybrid conversion, reduced draft vocabulary, and NVFP4 MTP graft design.
+- [tonyd2wild/Qwen3.8-Flash-Next-NVFP4-DGX-Spark](https://github.com/tonyd2wild/Qwen3.8-Flash-Next-NVFP4-DGX-Spark):
+  official NVIDIA checkpoint on one Spark without requantizing its side layers.
+- [dolf3131/qwen3.8-flash-next-dgx-spark](https://github.com/dolf3131/qwen3.8-flash-next-dgx-spark):
+  official NVIDIA mixed-precision and single-Spark loader research.
+- [Saren-Arterius/qwen3.8-Flash-DGX-AutoRound](https://github.com/Saren-Arterius/qwen3.8-Flash-DGX-AutoRound):
+  FP8 side-layer conversion and GB10 kernel work credited by the base project.
+- [Inferact/Qwen3.8-Flash-Next-NVFP4](https://huggingface.co/Inferact/Qwen3.8-Flash-Next-NVFP4):
+  pinned NVFP4 MTP donor.
+
+This is an independent integration and validation recipe, not an NVIDIA
+official repository. NVIDIA, DGX, and related names are trademarks of their
+respective owners.
+
+---
+
+## Upstream documentation
 
 Run **Qwen3.8-Flash-Next** — a ~176B-parameter model (125B main + 51B n-gram, 6B
 active) — on **one NVIDIA DGX Spark / ASUS GX10** with **vLLM**, at full prefill
