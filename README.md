@@ -40,9 +40,11 @@ license and contributor credits.
 - PLE stays FP8 and is served from NVMe with mmap; KV cache and recurrent state
   remain BF16 in the measured profile.
 
-No model weights are included in this repository. The source NVIDIA checkpoint
-is never overwritten: preparation uses an isolated destination and refuses to
-replace an existing one.
+The complete converted checkpoint is published in the
+[Hugging Face model repository](https://huggingface.co/Shinrali/Qwen3.8-Flash-Next-NVIDIA-Hybrid-Single-Spark).
+The GitHub source repository contains only code and documentation. The source
+NVIDIA checkpoint is never overwritten during local preparation: the scripts
+use an isolated destination and refuse to replace an existing one.
 
 ## Measured on one DGX Spark
 
@@ -66,7 +68,24 @@ two-sided p=0.453125), but its direction matters: validate your own production
 prompts before replacing a quality-first configuration. Tool calling was 4/4
 and long-context retrieval was 6/6 in all three profiles.
 
-## Build
+## Download the ready checkpoint
+
+The Hugging Face repository contains all 10 main shards, the 51.2 GB FP8 PLE
+shard, the 1.6 GB NVFP4 MTP donor shard, configs, processors, tokenizer, and
+the 33 MB safetensors index. Reported repository storage is approximately
+128.90 GB decimal (about 120.05 GiB).
+
+```bash
+hf download \
+  Shinrali/Qwen3.8-Flash-Next-NVIDIA-Hybrid-Single-Spark \
+  --local-dir /data/models/Qwen3.8-Flash-Next-NVIDIA-Hybrid-Single-Spark
+```
+
+The uploaded weight revision was committed as
+`15edf04a1b38dce19dffef9c7de77c8a7522561b`. Continue below only if you want
+to reproduce the conversion yourself from the parent checkpoints.
+
+## Build the runtime image
 
 Build the pinned upstream base, add the NVFP4 MTP dispatch patch, and then
 retarget the FP8-side shim:
@@ -149,10 +168,10 @@ This is an independent integration and validation recipe, not an NVIDIA
 official repository. NVIDIA, DGX, and related names are trademarks of their
 respective owners.
 
-The code and patches in this repository retain the upstream MIT license. Model
-weights are not redistributed here and remain governed by their respective
-model licenses, including the NVIDIA Open Model License and the terms stated on
-each donor model card.
+The code and patches in this repository retain the upstream MIT license. The
+Hugging Face repository redistributes the converted checkpoint under the model
+licenses applicable to the NVIDIA parent and Inferact donor, including the
+NVIDIA Open Model License and the terms stated on each model card.
 
 Redistributed derivative weights include the required attribution in
 [`NOTICE`](NOTICE). A copy of the NVIDIA Open Model License and the applicable
