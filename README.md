@@ -5,9 +5,12 @@ license_link: https://www.nvidia.com/en-us/agreements/enterprise-software/nvidia
 base_model:
   - nvidia/Qwen3.8-Flash-Next-NVFP4
 library_name: vllm
-pipeline_tag: text-generation
+pipeline_tag: image-text-to-text
 tags:
   - qwen3.8
+  - multimodal
+  - vision-language
+  - video
   - dgx-spark
   - nvfp4
   - fp8
@@ -24,6 +27,13 @@ MTP expert graft. This repository extends
 [blazux/qwen3.8-Flash-DGX](https://github.com/blazux/qwen3.8-Flash-DGX)
 at pinned commit `bd60fcb1b492ca920f74df7462f05da7b6d98f73` and preserves its MIT
 license and contributor credits.
+
+The checkpoint retains the base model's multimodal architecture and processor:
+text, image, and video-frame inputs are supported by a compatible vLLM build.
+The Hugging Face pipeline category is therefore `image-text-to-text`, matching
+the upstream Qwen model. Video is carried by the same multimodal chat API; it
+is not a separate Hugging Face pipeline category. Runtime media limits and
+frame sampling still depend on the serving configuration.
 
 > **Want the fastest tested NVIDIA-main lane?** Use the separately published
 > [FP8 `lm_head` checkpoint](https://huggingface.co/Shinrali/Qwen3.8-Flash-Next-NVIDIA-Hybrid-FP8-LMHead-Single-Spark).
