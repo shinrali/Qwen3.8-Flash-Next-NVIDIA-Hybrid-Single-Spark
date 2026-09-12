@@ -26,6 +26,11 @@ It keeps the NVIDIA-based hybrid checkpoint and converts only the complete
 It is intended to reduce the final-projection bandwidth cost without moving to
 an INT3 target model.
 
+For users arriving from the BF16-`lm_head` parent: this is the faster tested
+lane. On the same 100K profile it measured 28.11 instead of 25.92 decode tok/s
+(+8.4%). Three local 162-case runs found no directional quality regression, but
+that bounded regression suite does not prove model equivalence.
+
 The reproducible converter, pinned runtime patches, Dockerfiles and validation
 notes are in
 [`shinrali/Qwen3.8-Flash-Next-NVIDIA-Hybrid-Single-Spark`](https://github.com/shinrali/Qwen3.8-Flash-Next-NVIDIA-Hybrid-Single-Spark).
@@ -94,6 +99,28 @@ runtime JIT work, so interpret the 8K mean conservatively.
 The engine profiled 18.85 GiB of BF16 KV for 688,622 tokens. Host memory state
 affects automatic KV sizing; this release does not claim that the theoretical
 606 MiB disk/weight saving always becomes additional KV capacity.
+
+### Acceptance-scaled decode estimate
+
+With MTP 3, mean accepted length ranges from one to four output tokens per
+engine step. The measured weighted draft-acceptance rates imply mean lengths of
+2.012 for the BF16 parent and 1.983 for this FP8 lane. Their measured 100K
+decode rates therefore correspond to approximately 12.88 and 14.17 engine
+steps/s.
+
+| Mean accepted length (max 4) | Implied draft acceptance | BF16 `lm_head` estimate | FP8 `lm_head` estimate |
+| ---: | ---: | ---: | ---: |
+| 2.0 | 33.3% | 25.77 tok/s | 28.35 tok/s |
+| 2.5 | 50.0% | 32.21 tok/s | 35.44 tok/s |
+| 3.0 | 66.7% | 38.65 tok/s | 42.52 tok/s |
+| 3.5 | 83.3% | 45.09 tok/s | 49.61 tok/s |
+| **3.71** | **90.3%** | **47.80 tok/s** | **52.59 tok/s** |
+| 4.0 | 100% | 51.53 tok/s | 56.70 tok/s |
+
+The `3.71/4` row is a linear estimate for a request that actually sustains that
+mean accepted length, not a measured coding benchmark. PLE locality, context,
+concurrency, output distribution and warmup can change per-step time; use live
+decode measurements when available.
 
 ## Local quality regression
 

@@ -25,6 +25,14 @@ MTP expert graft. This repository extends
 at pinned commit `bd60fcb1b492ca920f74df7462f05da7b6d98f73` and preserves its MIT
 license and contributor credits.
 
+> **Want the fastest tested NVIDIA-main lane?** Use the separately published
+> [FP8 `lm_head` checkpoint](https://huggingface.co/Shinrali/Qwen3.8-Flash-Next-NVIDIA-Hybrid-FP8-LMHead-Single-Spark).
+> It keeps this NVIDIA NVFP4 main checkpoint, FP8 side layers and NVFP4 MTP,
+> while converting only the target model's final projection to blockwise FP8.
+> On the same 100K profile it measured 28.11 instead of 25.92 decode tok/s
+> (+8.4%), with no directional regression observed in our three-run 162-case
+> local suite. That is bounded local evidence, not proof of model equivalence.
+
 ## What this lane adds
 
 - NVIDIA's official `nvidia/Qwen3.8-Flash-Next-NVFP4` is the main checkpoint.
@@ -62,6 +70,33 @@ top-k, BF16 KV/recurrent state, 500,000-token YaRN profile, prefix caching on.
 Throughput units are tokens/s. The NVIDIA hybrid's three 100K runs averaged
 66.88 seconds end-to-end and 33.73% weighted MTP acceptance. It loaded 73.89
 GiB of weights and profiled a 19.73 GiB / 721,556-token KV pool.
+
+### Acceptance-scaled decode estimate
+
+MTP 3 verifies a fixed width of four output positions per engine step: one
+target token plus up to three accepted draft tokens. The measured 100K counter
+rates imply mean accepted lengths of `1 + 3 x 0.3373 = 2.012` for the BF16
+`lm_head` parent and `1 + 3 x 0.3277 = 1.983` for the FP8 `lm_head` lane. Dividing
+measured decode by those lengths gives approximately 12.88 and 14.17 engine
+steps/s respectively.
+
+If the verification width and per-step cost stay comparable, decode scales
+approximately with mean accepted length:
+
+| Mean accepted length (max 4) | Implied draft acceptance | BF16 `lm_head` estimate | FP8 `lm_head` estimate |
+| ---: | ---: | ---: | ---: |
+| 2.0 | 33.3% | 25.77 tok/s | 28.35 tok/s |
+| 2.5 | 50.0% | 32.21 tok/s | 35.44 tok/s |
+| 3.0 | 66.7% | 38.65 tok/s | 42.52 tok/s |
+| 3.5 | 83.3% | 45.09 tok/s | 49.61 tok/s |
+| **3.71** | **90.3%** | **47.80 tok/s** | **52.59 tok/s** |
+| 4.0 | 100% | 51.53 tok/s | 56.70 tok/s |
+
+The `3.71/4` row is useful for predictable coding output only when the live
+request actually reports that mean accepted length. These are linear estimates
+anchored to the measured 100K runs, not a measured coding benchmark. PLE page
+locality, output distribution, context length, concurrency and runtime warmup
+can change engine-step cost, so report the live decode rate whenever available.
 
 ### Local quality regression
 
