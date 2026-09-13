@@ -43,13 +43,14 @@ notes are in
 | 300 GDN/QSA/shared-expert side linears | blockwise FP8 E4M3 |
 | Main `lm_head` | blockwise FP8 E4M3, 128x128 |
 | MTP routed experts | NVFP4 donor from Inferact |
-| MTP reduced draft output head | BF16, 65,536 rows |
+| MTP reduced draft output head | optional blockwise FP8 E4M3, 65,536 rows |
 | PLE/n-gram table | FP8 E4M3, NVMe mmap at runtime |
 | Validated KV and recurrent state | BF16 |
 
-The MTP model itself was not changed to BF16. Only the small reduced-vocabulary
-draft output head remains BF16 because the custom proposer currently performs a
-plain `F.linear`; every proposed token is still verified by the target model.
+The MTP transformer and routed experts are unchanged. The optional reduced-vocabulary
+draft output head now uses the same 128x128 block-FP8 layout as the target head and
+is executed through vLLM's `Fp8LinearMethod`; every proposed token is still verified
+by the complete target model.
 
 ## Runtime requirement
 
@@ -67,18 +68,64 @@ docker build -f Dockerfile.nvidia-hybrid \
   -t nvidia-hybrid-single-spark:latest .
 docker build -f Dockerfile.fp8-lm-head \
   -t nvidia-hybrid-single-spark:fp8-lm-head .
+docker build -f Dockerfile.reduced-fp8-draft \
+  -t nvidia-hybrid-single-spark:fp8-draft .
 ```
 
 Set both variables when serving:
 
 ```text
 VLLM_MTP_DRAFT_VOCAB=/opt/llm/draft_vocab_65536.npy
-VLLM_MTP_DRAFT_HEAD=/model/mtp_draft_head_65536.safetensors
+VLLM_MTP_DRAFT_HEAD=/model/mtp_draft_head_65536_fp8.safetensors
 ```
 
 Use the repository's `recipes/nvidia-hybrid/compose.example.yaml` as the serving
-reference. Do not use `VLLM_MTP_DRAFT_HEAD` without the corresponding fixed
-65,536-token ID list.
+reference. The reduced head row at index `i` is the complete BF16 source head row
+selected by `draft_vocab_65536.npy[i]`, then block-FP8 quantized. Do not rename,
+reorder, regenerate or replace one file without rebuilding the other.
+
+The public matched pair is included in this repository:
+
+| File | SHA-256 |
+| --- | --- |
+| `draft_vocab_65536.npy` | `6459e0fdc8df30e0c1d1f45be7c1b6bef0d68b0e73c073a82c52ea2a7f4b26d4` |
+| `mtp_draft_head_65536_fp8.safetensors` | `25c4d394b283d3dd6f117a24d8aeb050f16f26d04a9decc81918a4d325912ab6` |
+
+The FP8 head contains a `(65536, 2560)` `float8_e4m3fn` weight and a
+`(512, 20)` FP32 `weight_scale_inv`. It is 167,813,472 bytes, versus about
+320 MiB for the BF16 reduced head.
+
+To fetch only the optional pair:
+
+```bash
+hf download \
+  Shinrali/Qwen3.8-Flash-Next-NVIDIA-Hybrid-FP8-LMHead-Single-Spark \
+  draft_vocab_65536.npy \
+  mtp_draft_head_65536_fp8.safetensors \
+  --local-dir /data/models/qwen38-fp8-draft-head
+```
+
+## Reduced-head A/B on one DGX Spark
+
+A private four-prompt application workload was used only for runtime measurement;
+no prompt or response text is published. Both lanes kept the same complete FP8
+target head, 65,536 token IDs, main checkpoint, MTP, PLE, BF16 KV and serving
+arguments. The only variable was the reduced draft head format. Each restart was
+followed by a complete warmup, and hot runs generated 4,916 tokens each with
+`temperature=0`, `seed=0` and a 16,384-token output limit.
+
+| Reduced draft head | Hot decode runs | Mean | MTP acceptance |
+| --- | --- | ---: | ---: |
+| BF16, 320 MiB | 41.36 / 41.18 tok/s | 41.27 tok/s | 48.57% |
+| FP8, 160 MiB | 43.70 / 40.66 / 43.92 / 43.95 tok/s | 43.05 tok/s | 48.41% |
+
+The all-run mean improvement was 4.32%; the FP8 median was 43.81 tok/s, 6.15%
+above the BF16 mean. One FP8 run was a low outlier, so this should be described
+as an observed 4–6% benefit with runtime variance, not a guaranteed fixed gain.
+The measured application used a private domain-tuned 65K ID list. The public
+generic pair has the identical dimensions, dtype and kernel path, but was not
+substituted into the local production service; its acceptance rate depends on
+the user's output distribution.
 
 ## One DGX Spark measurements
 

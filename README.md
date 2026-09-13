@@ -133,8 +133,9 @@ The optional `Dockerfile.fp8-lm-head` and
 a 128x128 blockwise FP8 E4M3 final projection. The converter writes an isolated
 destination, keeps the source checkpoint unchanged, updates the ModelOpt mixed
 metadata and safetensors index, and emits a separate 65,536-row BF16 draft head.
-The MTP transformer and experts remain NVFP4; only its small reduced-vocabulary
-draft output head remains BF16.
+`Dockerfile.reduced-fp8-draft`, `tools/build_reduced_fp8_head.py` and the upgraded
+draft-vocabulary patch optionally replace that small BF16 draft head with a
+matched 128x128 block-FP8 head. The MTP transformer and experts remain NVFP4.
 
 ```bash
 cp -al \
@@ -147,6 +148,14 @@ python3 recipes/nvidia-hybrid/quantize_lm_head_fp8.py \
 
 docker build -f Dockerfile.fp8-lm-head \
   -t nvidia-hybrid-single-spark:fp8-lm-head .
+
+python3 tools/build_reduced_fp8_head.py \
+  /data/models/Qwen3.8-Flash-Next-NVIDIA-NVFP4 \
+  src/draft_vocab_65536.npy \
+  /data/models/Qwen3.8-Flash-Next-NVIDIA-FP8-Hybrid-MTPNVFP4-FP8Head/mtp_draft_head_65536_fp8.safetensors
+
+docker build -f Dockerfile.reduced-fp8-draft \
+  -t nvidia-hybrid-single-spark:fp8-draft .
 ```
 
 The pinned vLLM preview needs the companion-scale loader in
@@ -163,6 +172,15 @@ still included runtime JIT work; its three-run mean was 2233.42/27.34 tok/s.
 Treat this as an experimental lane until the loader support lands upstream and
 validate application-specific long conversations before publishing derivative
 weights.
+
+The public generic 65K FP8 draft-head pair is distributed in the same FP8-LMHead
+Hugging Face repository. The two files are inseparable: reduced-head row `i`
+must correspond to the complete source-head row named by vocabulary ID `i` in
+the accompanying array. A private application-tuned A/B measured 43.05 versus
+41.27 decode tok/s on average (+4.32%; FP8 median +6.15%), while MTP acceptance
+changed from 48.57% to 48.41%. One of four FP8 hot runs was a low outlier, and
+the public generic vocabulary was deliberately not swapped into the private
+production service, so validate its acceptance rate on your own workload.
 
 The ready FP8-head checkpoint is published separately at
 [Shinrali/Qwen3.8-Flash-Next-NVIDIA-Hybrid-FP8-LMHead-Single-Spark](https://huggingface.co/Shinrali/Qwen3.8-Flash-Next-NVIDIA-Hybrid-FP8-LMHead-Single-Spark),

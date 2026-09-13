@@ -320,11 +320,14 @@ Two changes taken as ideas from MiaAI-Lab's recipe and reimplemented here.
 **Reduced draft vocabulary.** `llm_base_proposer._maybe_share_lm_head` gives the MTP draft the
 target's `lm_head`, so each draft step is a (B × 2560) · (2560 × 248,320) bf16 GEMV: 1.27 GiB
 read per drafted token, twice per step at MTP=2, on a decode step that is bandwidth-bound.
-`src/patch_mtp_draft_vocab.py` wraps `Qwen3_8FlashNextMTP.compute_logits`: on first call it
-slices the shared head to the ids in `VLLM_MTP_DRAFT_VOCAB` (a private 65,536 × 2560 copy,
-320 MiB), then each call computes the reduced logits and scatters them into a full-width tensor
-filled with −∞, so `argmax`, the rejection sampler and `VocabMapping` see the usual shape. The
-target's head is never touched. Correctness argument: with greedy drafting the rejection sampler
+`src/patch_mtp_draft_vocab.py` wraps `Qwen3_8FlashNextMTP.compute_logits`. With a BF16 target
+head it can slice the shared head to the ids in `VLLM_MTP_DRAFT_VOCAB` (a 65,536 × 2560 copy,
+320 MiB). With a block-FP8 target head, `VLLM_MTP_DRAFT_HEAD` supplies the matching reduced
+head and scale tensor; the upgraded hook initializes vLLM's block-FP8 linear method during model
+construction. The public FP8 pair is 160 MiB and uses the same exact ID order. Each call computes
+the reduced logits and scatters them into a full-width tensor filled with −∞, so `argmax`, the
+rejection sampler and `VocabMapping` see the usual shape. The target's head is never touched.
+Correctness argument: with greedy drafting the rejection sampler
 accepts a drafted token with probability p_target(token) and otherwise resamples from the target
 with that token removed, which reproduces the target distribution exactly for *any* draft; a
 smaller vocabulary only changes which token is drafted. The tournament confirmed it (45/51, the
