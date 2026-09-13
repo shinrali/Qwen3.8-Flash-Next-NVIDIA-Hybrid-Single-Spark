@@ -9,6 +9,9 @@ library_name: vllm
 pipeline_tag: image-text-to-text
 tags:
   - qwen3.8
+  - multimodal
+  - vision-language
+  - video
   - dgx-spark
   - nvfp4
   - fp8
@@ -17,7 +20,16 @@ tags:
   - quantization
 ---
 
-# Qwen3.8-Flash-Next NVIDIA Hybrid FP8 LMHead Single Spark
+# Qwen3.8-Flash-Next NVIDIA Hybrid — FP8 LM Head (Recommended)
+
+> [!TIP]
+> **Recommended for one DGX Spark.** This is the fastest quality-preserving
+> NVIDIA-main configuration validated by this project.
+>
+> **Project navigation:**
+> [source code and DGX Spark runtime](https://github.com/shinrali/Qwen3.8-Flash-Next-NVIDIA-Hybrid-Single-Spark)
+> · [all Hugging Face releases](https://huggingface.co/collections/Shinrali/qwen38-flash-next-nvidia-hybrid-for-dgx-spark-6aa603b1e29d415b0d8d8ebd)
+> · [BF16 `lm_head` reference](https://huggingface.co/Shinrali/Qwen3.8-Flash-Next-NVIDIA-Hybrid-Single-Spark)
 
 This is an experimental single-DGX-Spark derivative of
 [`Shinrali/Qwen3.8-Flash-Next-NVIDIA-Hybrid-Single-Spark`](https://huggingface.co/Shinrali/Qwen3.8-Flash-Next-NVIDIA-Hybrid-Single-Spark).

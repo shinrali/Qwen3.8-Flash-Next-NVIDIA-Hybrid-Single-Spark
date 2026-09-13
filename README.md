@@ -19,7 +19,19 @@ tags:
   - quantization
 ---
 
-# Qwen3.8-Flash-Next NVIDIA Hybrid Single Spark
+# Qwen3.8-Flash-Next NVIDIA Hybrid for DGX Spark
+
+> [!TIP]
+> **Recommended checkpoint:**
+> [FP8 `lm_head`](https://huggingface.co/Shinrali/Qwen3.8-Flash-Next-NVIDIA-Hybrid-FP8-LMHead-Single-Spark)
+> is the fastest quality-preserving NVIDIA-main configuration validated by this
+> project. The
+> [BF16 `lm_head` checkpoint](https://huggingface.co/Shinrali/Qwen3.8-Flash-Next-NVIDIA-Hybrid-Single-Spark)
+> remains available as the conservative reference and rollback lane.
+>
+> **Project navigation:**
+> [source code and DGX Spark runtime](https://github.com/shinrali/Qwen3.8-Flash-Next-NVIDIA-Hybrid-Single-Spark)
+> · [all Hugging Face releases](https://huggingface.co/collections/Shinrali/qwen38-flash-next-nvidia-hybrid-for-dgx-spark-6aa603b1e29d415b0d8d8ebd)
 
 Run Qwen3.8-Flash-Next on one NVIDIA DGX Spark using the official NVIDIA
 NVFP4 checkpoint, locally converted FP8 E4M3 dense side layers, and an NVFP4
@@ -58,9 +70,11 @@ frame sampling still depend on the serving configuration.
 - PLE stays FP8 and is served from NVMe with mmap; KV cache and recurrent state
   remain BF16 in the measured profile.
 
-The complete converted checkpoint is published in the
+The complete BF16-`lm_head` reference checkpoint is published in the
 [Hugging Face model repository](https://huggingface.co/Shinrali/Qwen3.8-Flash-Next-NVIDIA-Hybrid-Single-Spark).
-The GitHub source repository contains only code and documentation. The source
+The
+[GitHub source repository](https://github.com/shinrali/Qwen3.8-Flash-Next-NVIDIA-Hybrid-Single-Spark)
+contains code and documentation for both checkpoint lanes. The source
 NVIDIA checkpoint is never overwritten during local preparation: the scripts
 use an isolated destination and refuse to replace an existing one.
 
