@@ -26,8 +26,9 @@ tags:
 # Qwen3.8-Flash-Next NVIDIA Hybrid — FP8 LM Head and Personal 65K MTP
 
 > [!TIP]
-> **Recommended for one DGX Spark.** This is the fastest quality-preserving
-> NVIDIA-main configuration validated by this project.
+> **Recommended checkpoint.** This is the fastest quality-preserving
+> NVIDIA-main configuration validated by this project on DGX Spark and the
+> RTX PRO 6000 WSL2 profile described below.
 >
 > **Project navigation:**
 > [source code and DGX Spark runtime](https://github.com/shinrali/Qwen3.8-Flash-Next-NVIDIA-Hybrid-Single-Spark)
@@ -41,11 +42,12 @@ It keeps the NVIDIA-based hybrid checkpoint and converts only the complete
 It is intended to reduce the final-projection bandwidth cost without moving to
 an INT3 target model.
 
-The primary validation host is one DGX Spark. The same patched vLLM checkpoint
-has also been validated under Windows Docker Desktop/WSL2 on an RTX PRO 6000
-Blackwell with two 262,144-token sequence slots. A separate 4K single-stream
-run measured 10,223.18 effective prefill tok/s, 91.66 decode tok/s, 0.400 s TTFT
-and 47.66% MTP acceptance.
+The primary validation host is one DGX Spark. This same FP8-target-head
+checkpoint and personal 65K FP8 draft pair have also been validated under
+Windows Docker Desktop/WSL2 on an RTX PRO 6000 Blackwell with two
+262,144-token sequence slots. A separate 4K single-stream run measured
+10,223.18 effective prefill tok/s, 91.66 decode tok/s, 0.400 s TTFT and 47.66%
+MTP acceptance.
 
 For users arriving from the BF16-`lm_head` parent: this is the faster tested
 lane. On the same 100K profile it measured 28.11 instead of 25.92 decode tok/s
@@ -157,8 +159,11 @@ tokens, 10,223.18 effective prefill tok/s, 91.66 decode tok/s, 0.400 s TTFT,
 47.66% MTP acceptance and 5.985 s end-to-end. The harness inserts a fresh UUID
 nonce near the start of every prompt, so the reported prefill is not a repeated
 4K prefix-cache hit. This is a 4K single-stream result, not a 256K or concurrent
-throughput claim. See the linked source repository for per-run values, exact
-platform notes and the patch manifest.
+throughput claim. See the source repository's
+[`BENCHMARKS.md`](https://github.com/shinrali/Qwen3.8-Flash-Next-NVIDIA-Hybrid-Single-Spark/blob/main/docs/BENCHMARKS.md)
+for per-run values and
+[`WINDOWS-WSL2-RTX-PRO-6000.md`](https://github.com/shinrali/Qwen3.8-Flash-Next-NVIDIA-Hybrid-Single-Spark/blob/main/docs/WINDOWS-WSL2-RTX-PRO-6000.md)
+for exact platform notes.
 
 ## Reduced-head A/B on one DGX Spark
 

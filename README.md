@@ -1,383 +1,211 @@
----
-license: other
-license_name: nvidia-open-model-license
-license_link: https://www.nvidia.com/en-us/agreements/enterprise-software/nvidia-open-model-license/
-base_model:
-  - nvidia/Qwen3.8-Flash-Next-NVFP4
-library_name: vllm
-pipeline_tag: image-text-to-text
-tags:
-  - qwen3.8
-  - multimodal
-  - vision-language
-  - video
-  - dgx-spark
-  - nvfp4
-  - fp8
-  - modelopt
-  - vllm
-  - quantization
----
+# Qwen3.8-Flash-Next NVIDIA Hybrid for Blackwell
 
-# Qwen3.8-Flash-Next NVIDIA Hybrid — Spark and RTX PRO 6000 WSL2
-
-> [!TIP]
 > **Recommended checkpoint:**
 > [FP8 `lm_head`](https://huggingface.co/Shinrali/Qwen3.8-Flash-Next-NVIDIA-Hybrid-FP8-LMHead-Single-Spark)
-> is the fastest quality-preserving NVIDIA-main configuration validated by this
-> project. The
-> [BF16 `lm_head` checkpoint](https://huggingface.co/Shinrali/Qwen3.8-Flash-Next-NVIDIA-Hybrid-Single-Spark)
-> remains available as the conservative reference and rollback lane.
->
-> **Project navigation:**
-> [source code and DGX Spark runtime](https://github.com/shinrali/Qwen3.8-Flash-Next-NVIDIA-Hybrid-Single-Spark)
+> · [BF16 `lm_head` reference](https://huggingface.co/Shinrali/Qwen3.8-Flash-Next-NVIDIA-Hybrid-Single-Spark)
 > · [all Hugging Face releases](https://huggingface.co/collections/Shinrali/qwen38-flash-next-nvidia-hybrid-for-dgx-spark-6aa603b1e29d415b0d8d8ebd)
 
-Run Qwen3.8-Flash-Next on one NVIDIA DGX Spark or a sufficiently large Blackwell
-workstation using the official NVIDIA
-NVFP4 checkpoint, locally converted FP8 E4M3 dense side layers, and an NVFP4
-MTP expert graft. This repository extends
+Run Qwen3.8-Flash-Next on one NVIDIA DGX Spark or a sufficiently large
+Blackwell workstation. The project combines NVIDIA's official NVFP4 target
+checkpoint with locally converted FP8 side layers, an NVFP4 MTP expert graft,
+FP8 PLE mmap/offload and optional matched 65K FP8 draft heads. It publishes two
+checkpoint lanes and three validated runtime profiles across vLLM and SGLang.
+
+This repository extends
 [blazux/qwen3.8-Flash-DGX](https://github.com/blazux/qwen3.8-Flash-DGX)
-at pinned commit `bd60fcb1b492ca920f74df7462f05da7b6d98f73` and preserves its MIT
-license and contributor credits.
+at pinned commit `bd60fcb1b492ca920f74df7462f05da7b6d98f73` and retains
+its upstream credits and MIT-licensed code notices.
+
+## Choose a checkpoint
+
+| Lane | Use it when | Main difference |
+| --- | --- | --- |
+| **[FP8 `lm_head`](https://huggingface.co/Shinrali/Qwen3.8-Flash-Next-NVIDIA-Hybrid-FP8-LMHead-Single-Spark)** | You want the fastest quality-preserving NVIDIA-main profile validated here | Complete target `lm_head` is block-FP8 E4M3; includes public and personal matched 65K FP8 draft pairs |
+| [BF16 `lm_head`](https://huggingface.co/Shinrali/Qwen3.8-Flash-Next-NVIDIA-Hybrid-Single-Spark) | You want the conservative reference or rollback checkpoint | Target `lm_head` remains BF16; main experts, side layers, MTP graft and PLE layout otherwise match |
+
+The FP8 target head measured 28.11 instead of 25.92 decode tok/s on the same
+100K DGX Spark vLLM profile (+8.4%). A bounded local regression suite found no
+directional quality loss, but it is not proof of model equivalence. Validate
+application-specific prompts before replacing a quality-first setup.
 
 ## Validated runtime matrix
 
-This release covers one checkpoint and matched personal 65K MTP pair across
-three validated runtime paths. The repository name retains `Single-Spark` for
-compatibility, but the vLLM runtime is also validated under Windows/WSL2.
+The rows below use different workloads and are representative validations, not
+a single cross-platform leaderboard.
 
-| Host | Backend | Validated boundary | Measured result |
-| --- | --- | --- | --- |
-| DGX Spark, GB10 128 GB | vLLM pinned preview | 500K YaRN profile; BF16 KV/recurrent state | 100K prefill 2141.79 tok/s, decode 28.11 tok/s |
-| DGX Spark, GB10 128 GB | SGLang v0.5.20 | 262,144 context; personal 65K FP8 draft pair | hot run 2663.39 prefill, 42.53 decode tok/s, 56.11% MTP |
-| Windows + Docker Desktop/WSL2, RTX PRO 6000 Blackwell | same patched vLLM preview | BF16 KV, 16 GiB explicit KV, two concurrent 262,144-token slots | 4K single-stream: 10,223.18 prefill, 91.66 decode tok/s, 47.66% MTP |
+| Host | Backend | Checkpoint and draft | Validated boundary | Representative measurement |
+| --- | --- | --- | --- | --- |
+| DGX Spark, GB10 128 GB | patched vLLM preview | FP8 `lm_head` + personal 65K FP8 draft | 500K YaRN profile; BF16 KV/recurrent state | 100K: 2141.79 prefill, 28.11 decode tok/s |
+| DGX Spark, GB10 128 GB | SGLang v0.5.20 | FP8 `lm_head` + personal 65K FP8 draft | 262,144 context; persistent FP8 PLE | 4K hot run: 2663.39 prefill, 42.53 decode tok/s, 56.11% MTP |
+| RTX PRO 6000 Blackwell, Windows Docker Desktop/WSL2 | same patched vLLM preview | FP8 `lm_head` + personal 65K FP8 draft | BF16 KV; 16 GiB explicit KV; two 262,144-token slots | 4K three-run mean: 10,223.18 prefill, 91.66 decode tok/s, 47.66% MTP |
 
-The quality regression belongs to the checkpoint, not to a claim that every
-backend produces byte-identical scheduling. Three vLLM runs scored 147, 146 and
-148 out of 162; tools were 4/4 and long-context retrieval was 6/6 each time.
-See `docs/WINDOWS-WSL2-RTX-PRO-6000.md`,
-`docs/PERSONAL-65K-SGLANG-2026-09-19.md`, and `docs/PATCH-MANIFEST.md`.
+The WSL2 harness used a fresh UUID nonce near the beginning of every prompt,
+so its 10.2K tok/s result is not a repeated 4K prefix-cache hit. It remains a
+single-stream short-context result and does not establish 256K prefill speed or
+two-stream aggregate throughput. See [the full benchmark record](docs/BENCHMARKS.md).
 
-The WSL2 result is the mean of three temperature-zero runs after one warm-up:
-4,088 prompt tokens and 512 generated tokens per run, 0.400 s mean TTFT and
-5.985 s mean end-to-end latency. The harness inserts a new UUID nonce near the
-start of every prompt, so the 10.2K tok/s figure is not a repeated-prefix cache
-measurement. It is a bounded 4K, single-stream result; it does not establish
-256K prefill speed or two-stream aggregate throughput.
+## Quick start
 
-The checkpoint retains the base model's multimodal architecture and processor:
-text, image, and video-frame inputs are supported by a compatible vLLM build.
-The Hugging Face pipeline category is therefore `image-text-to-text`, matching
-the upstream Qwen model. Video is carried by the same multimodal chat API; it
-is not a separate Hugging Face pipeline category. Runtime media limits and
-frame sampling still depend on the serving configuration.
-
-> **Want the fastest tested NVIDIA-main lane?** Use the separately published
-> [FP8 `lm_head` checkpoint](https://huggingface.co/Shinrali/Qwen3.8-Flash-Next-NVIDIA-Hybrid-FP8-LMHead-Single-Spark).
-> It keeps this NVIDIA NVFP4 main checkpoint, FP8 side layers and NVFP4 MTP,
-> while converting only the target model's final projection to blockwise FP8.
-> On the same 100K profile it measured 28.11 instead of 25.92 decode tok/s
-> (+8.4%), with no directional regression observed in our three-run 162-case
-> local suite. That is bounded local evidence, not proof of model equivalence.
-
-## What this lane adds
-
-- NVIDIA's official `nvidia/Qwen3.8-Flash-Next-NVFP4` is the main checkpoint.
-- 300 dense side-layer linears are converted locally to blockwise FP8 E4M3:
-  GDN `in_proj_qkv`, `in_proj_z`, `out_proj`; QSA q/k/v/o; and shared-expert
-  gate/up/down projections.
-- `in_proj_ba`, norms, gates, hyperconnection parameters, and `lm_head` remain
-  BF16. The current blockwise-FP8 loader does not support `in_proj_ba`.
-- NVIDIA's FP8 MTP expert block is replaced with the pinned Inferact per-expert
-  NVFP4 donor. The target model still verifies speculative tokens.
-- The FP8 hybrid shim is retargeted from `ModelOptNvFp4Config` to the official
-  checkpoint's real `ModelOptMixedPrecisionConfig`.
-- PLE stays FP8 and is served from NVMe with mmap; KV cache and recurrent state
-  remain BF16 in the measured profile.
-
-The complete BF16-`lm_head` reference checkpoint is published in the
-[Hugging Face model repository](https://huggingface.co/Shinrali/Qwen3.8-Flash-Next-NVIDIA-Hybrid-Single-Spark).
-The
-[GitHub source repository](https://github.com/shinrali/Qwen3.8-Flash-Next-NVIDIA-Hybrid-Single-Spark)
-contains code and documentation for both checkpoint lanes. The source
-NVIDIA checkpoint is never overwritten during local preparation: the scripts
-use an isolated destination and refuse to replace an existing one.
-
-## Measured on one DGX Spark
-
-Hardware: GB10, 128 GB unified memory. Runtime: vLLM preview pinned by the base
-repository, MTP 3, 65,536-token reduced draft vocabulary, deterministic QSA
-top-k, BF16 KV/recurrent state, 500,000-token YaRN profile, prefix caching on.
-
-| Profile | 8K prefill | 8K decode | 100K prefill | 100K decode |
-| --- | ---: | ---: | ---: | ---: |
-| NVIDIA BF16-side + NVFP4 MTP | 2253.28 | 20.36 | 2177.88 | 21.21 |
-| **NVIDIA FP8-side + NVFP4 MTP** | **2303.64** | **24.77** | **2129.24** | **25.92** |
-| NVIDIA FP8-side + FP8 `lm_head` + NVFP4 MTP | 2233.42 | **27.34** | **2141.79** | **28.11** |
-| RadixArk FP8-side + NVFP4 MTP | 2341.93 | 26.05 | 2154.00 | 26.86 |
-
-Throughput units are tokens/s. The NVIDIA hybrid's three 100K runs averaged
-66.88 seconds end-to-end and 33.73% weighted MTP acceptance. It loaded 73.89
-GiB of weights and profiled a 19.73 GiB / 721,556-token KV pool.
-
-### Acceptance-scaled decode estimate
-
-MTP 3 verifies a fixed width of four output positions per engine step: one
-target token plus up to three accepted draft tokens. The measured 100K counter
-rates imply mean accepted lengths of `1 + 3 x 0.3373 = 2.012` for the BF16
-`lm_head` parent and `1 + 3 x 0.3277 = 1.983` for the FP8 `lm_head` lane. Dividing
-measured decode by those lengths gives approximately 12.88 and 14.17 engine
-steps/s respectively.
-
-If the verification width and per-step cost stay comparable, decode scales
-approximately with mean accepted length:
-
-| Mean accepted length (max 4) | Implied draft acceptance | BF16 `lm_head` estimate | FP8 `lm_head` estimate |
-| ---: | ---: | ---: | ---: |
-| 2.0 | 33.3% | 25.77 tok/s | 28.35 tok/s |
-| 2.5 | 50.0% | 32.21 tok/s | 35.44 tok/s |
-| 3.0 | 66.7% | 38.65 tok/s | 42.52 tok/s |
-| 3.5 | 83.3% | 45.09 tok/s | 49.61 tok/s |
-| **3.71** | **90.3%** | **47.80 tok/s** | **52.59 tok/s** |
-| 4.0 | 100% | 51.53 tok/s | 56.70 tok/s |
-
-The `3.71/4` row is useful for predictable coding output only when the live
-request actually reports that mean accepted length. These are linear estimates
-anchored to the measured 100K runs, not a measured coding benchmark. PLE page
-locality, output distribution, context length, concurrency and runtime warmup
-can change engine-step cost, so report the live decode rate whenever available.
-
-### Local quality regression
-
-This is a local 162-case regression suite, not an official Qwen,
-NVIDIA, or community benchmark. Three repeated runs of the uploaded NVIDIA
-FP8-side checkpoint scored 144/162, 146/162, and 148/162 (mean 146/162); the
-paired NVIDIA BF16-side and RadixArk hybrid comparison profiles each scored
-147/162. Pass/fail status was identical for 156/162 cases across all three
-runs: 143 always passed, 13 always failed, and only six MMLU boundary cases
-varied. In the latest 148-point run, each 147-point comparison had five
-discordant cases: three uploaded-checkpoint-only passes and two baseline-only
-passes (exact paired two-sided p=1.0). Only 107/162 raw outputs were
-byte-identical across all three runs, showing that this concurrent MTP runtime
-is not strictly byte-deterministic even at temperature zero. This sample does
-not establish a reliable quality difference; report the observed 144-148 range
-rather than selecting a single run. Tool calling was 4/4 and long-context
-retrieval was 6/6 in all three uploaded-checkpoint runs. Validate
-application-specific prompts before replacing a quality-first setup.
-
-### Experimental block-FP8 `lm_head`
-
-The optional `Dockerfile.fp8-lm-head` and
-`recipes/nvidia-hybrid/quantize_lm_head_fp8.py` extend the same checkpoint with
-a 128x128 blockwise FP8 E4M3 final projection. The converter writes an isolated
-destination, keeps the source checkpoint unchanged, updates the ModelOpt mixed
-metadata and safetensors index, and emits a separate 65,536-row BF16 draft head.
-`Dockerfile.reduced-fp8-draft`, `tools/build_reduced_fp8_head.py` and the upgraded
-draft-vocabulary patch optionally replace that small BF16 draft head with a
-matched 128x128 block-FP8 head. The MTP transformer and experts remain NVFP4.
-
-```bash
-cp -al \
-  /data/models/Qwen3.8-Flash-Next-NVIDIA-FP8-Hybrid-MTPNVFP4 \
-  /data/models/Qwen3.8-Flash-Next-NVIDIA-FP8-Hybrid-MTPNVFP4-FP8Head
-
-python3 recipes/nvidia-hybrid/quantize_lm_head_fp8.py \
-  /data/models/Qwen3.8-Flash-Next-NVIDIA-FP8-Hybrid-MTPNVFP4-FP8Head \
-  --draft-vocab src/draft_vocab_65536.npy
-
-docker build -f Dockerfile.fp8-lm-head \
-  -t nvidia-hybrid-single-spark:fp8-lm-head .
-
-python3 tools/build_reduced_fp8_head.py \
-  /data/models/Qwen3.8-Flash-Next-NVIDIA-NVFP4 \
-  src/draft_vocab_65536.npy \
-  /data/models/Qwen3.8-Flash-Next-NVIDIA-FP8-Hybrid-MTPNVFP4-FP8Head/mtp_draft_head_65536_fp8.safetensors
-
-docker build -f Dockerfile.reduced-fp8-draft \
-  -t nvidia-hybrid-single-spark:fp8-draft .
-```
-
-The pinned vLLM preview needs the companion-scale loader in
-`src/patch_fp8_lm_head.py`; this is a narrow port of the unmerged upstream
-`ParallelLMHead` block-FP8 work. Three local 162-case runs scored 147, 146 and
-148 (mean 147), including 4/4 tool calls and 6/6 long-context retrieval in every
-run. Compared with three runs of the BF16 `lm_head` profile, 141 cases always
-passed in both profiles and 11 always failed in both. The remaining differences
-were boundary cases rather than a directional regression.
-
-The measured 100K profile improved decode from 25.92 to 28.11 tok/s while
-prefill remained effectively flat (2129.24 to 2141.79 tok/s). The first 8K run
-still included runtime JIT work; its three-run mean was 2233.42/27.34 tok/s.
-Treat this as an experimental lane until the loader support lands upstream and
-validate application-specific long conversations before publishing derivative
-weights.
-
-The public generic 65K FP8 draft-head pair is distributed in the same FP8-LMHead
-Hugging Face repository. The two files are inseparable: reduced-head row `i`
-must correspond to the complete source-head row named by vocabulary ID `i` in
-the accompanying array. A matched FP8-vs-BF16 reduced-head A/B measured 43.05
-versus 41.27 decode tok/s on average (+4.32%; FP8 median +6.15%), while MTP
-acceptance changed from 48.57% to 48.41%. One of four FP8 hot runs was a low
-outlier. Validate either vocabulary on your own output distribution.
-
-### Personally optimized 65K pair and SGLang v0.5.20
-
-An optional personally optimized pair is also published in the FP8-LMHead
-Hugging Face repository:
-
-- `studio_draft_vocab_65536_all.npy`
-- `mtp_draft_head_studio_65536_all_fp8.safetensors`
-
-The historical `studio_` filenames are retained for compatibility only. They do
-not indicate an application dependency. The
-pair contains only a selected token-ID array and its matched FP8 head rows; no
-source text is included. It is a personal optimization, not a universally better
-vocabulary: deploy the two files together and compare acceptance on your own
-traffic. The bounded SGLang measurement is documented in
-`docs/PERSONAL-65K-SGLANG-2026-09-19.md`.
-
-`src/sglang/patch_sglang_draft65k.py` ports the matched reduced block-FP8 draft
-head to the NVIDIA Qwen4/Flash-Next path in SGLang v0.5.20. It keeps the target
-`lm_head` at all 248,320 rows, gives the MTP worker a separate 65,536-row head,
-and fails startup if the shallow copy would alias or mutate the target module.
-Apply it before `sglang serve`, then configure:
-
-```bash
-export SGLANG_MTP_DRAFT_HEAD=/model/mtp_draft_head_studio_65536_all_fp8.safetensors
-
-python3 src/sglang/patch_sglang_draft65k.py
-python3 -c "import numpy as np, torch; torch.save(torch.from_numpy(np.load('/model/studio_draft_vocab_65536_all.npy')).to(torch.int64), '/tmp/hot65536.pt')"
-
-sglang serve \
-  --model-path /model \
-  --speculative-algorithm NEXTN \
-  --speculative-num-steps 3 \
-  --speculative-eagle-topk 1 \
-  --speculative-num-draft-tokens 4 \
-  --speculative-token-map /tmp/hot65536.pt
-```
-
-On one DGX Spark fixed speed-test profile, the complete draft vocabulary measured
-37.31 decode tok/s at 46.94% MTP acceptance. The first reduced run measured
-37.47 tok/s at 48.61%; a subsequent hot run measured 42.53 tok/s at 56.11%.
-The hot result is promising but is a single workload sample and includes runtime
-warm-up effects, so it should not be presented as a general 14% guarantee.
-
-The SGLang release is not just documentation. `Dockerfile.sglang` and every
-runtime patch it invokes are tracked in this repository; the complete list and
-build-time audit command are in `docs/PATCH-MANIFEST.md`.
-
-The ready FP8-head checkpoint is published separately at
-[Shinrali/Qwen3.8-Flash-Next-NVIDIA-Hybrid-FP8-LMHead-Single-Spark](https://huggingface.co/Shinrali/Qwen3.8-Flash-Next-NVIDIA-Hybrid-FP8-LMHead-Single-Spark),
-so the earlier BF16-head checkpoint remains available and unchanged.
-
-## Download the ready checkpoint
-
-The Hugging Face repository contains all 10 main shards, the 51.2 GB FP8 PLE
-shard, the 1.6 GB NVFP4 MTP donor shard, configs, processors, tokenizer, and
-the 33 MB safetensors index. Reported repository storage is approximately
-128.90 GB decimal (about 120.05 GiB).
+### Download the recommended checkpoint
 
 ```bash
 hf download \
-  Shinrali/Qwen3.8-Flash-Next-NVIDIA-Hybrid-Single-Spark \
-  --local-dir /data/models/Qwen3.8-Flash-Next-NVIDIA-Hybrid-Single-Spark
+  Shinrali/Qwen3.8-Flash-Next-NVIDIA-Hybrid-FP8-LMHead-Single-Spark \
+  --local-dir /data/models/Qwen3.8-Flash-Next-NVIDIA-Hybrid-FP8-LMHead-Single-Spark
 ```
 
-The uploaded weight revision was committed as
-`15edf04a1b38dce19dffef9c7de77c8a7522561b`. Continue below only if you want
-to reproduce the conversion yourself from the parent checkpoints.
+Use the BF16 reference repository instead only when you deliberately want the
+rollback lane. The source NVIDIA checkpoint is never modified by the conversion
+scripts; local preparation always targets an isolated destination.
 
-## Build the runtime image
-
-Build the pinned upstream base, add the NVFP4 MTP dispatch patch, and then
-retarget the FP8-side shim:
+### Build the patched vLLM runtime
 
 ```bash
+git clone https://github.com/shinrali/Qwen3.8-Flash-Next-NVIDIA-Hybrid-Single-Spark.git
+cd Qwen3.8-Flash-Next-NVIDIA-Hybrid-Single-Spark
+
 docker build -t nvidia-hybrid-single-spark:base .
 docker build -f Dockerfile.nvidia-nvfp4mtp \
   -t nvidia-hybrid-single-spark:mtp .
 docker build -f Dockerfile.nvidia-hybrid \
   -t nvidia-hybrid-single-spark:latest .
+docker build -f Dockerfile.fp8-lm-head \
+  -t nvidia-hybrid-single-spark:fp8-lm-head .
+docker build -f Dockerfile.reduced-fp8-draft \
+  -t nvidia-hybrid-single-spark:fp8-draft .
 ```
 
-## Prepare the checkpoint
-
-Download the official NVIDIA checkpoint and the pinned Inferact donor first.
-The donor file must be named `nvfp4_experts_mtp.safetensors`; the preparation
-script verifies SHA-256
-`0d44e6d705d2313c713e60114e56874adf358ed5f646dc8704bb5be15f5ddbf7`.
-
-```bash
-export MODEL_ROOT=/data/models
-
-# 1. Hard-link the NVIDIA checkpoint into an isolated working copy and convert
-#    the 300 supported side linears to blockwise FP8.
-recipes/nvidia-hybrid/prepare-nvidia-hybrid.sh
-
-# 2. Remove NVIDIA's FP8 MTP expert tensors and graft the NVFP4 donor.
-python3 recipes/nvidia-hybrid/prepare_nvidia_fp8side_nvfp4_mtp.py
-
-# 3. Restore the scale metadata contract used by the proven Fp8Config shim.
-export FINAL_MODEL_DIR="$MODEL_ROOT/Qwen3.8-Flash-Next-NVIDIA-FP8-Hybrid-MTPNVFP4"
-python3 recipes/nvidia-hybrid/rewrite_fp8_side_scales_shim.py
-```
-
-The first step requires hard-link support and about 13 GiB for rewritten side
-shards. The second step requires at least 64 GiB free while repacking the mixed
-PLE/MTP shard. Do not point any destination variable at your original model.
-
-## Run
-
-```bash
-export FINAL_MODEL_DIR=/data/models/Qwen3.8-Flash-Next-NVIDIA-FP8-Hybrid-MTPNVFP4
-export CACHE_DIR=/data/cache/nvidia-hybrid-single-spark
-export API_KEY_FILE=/run/secrets/qwen-api-key
-docker compose -f recipes/nvidia-hybrid/compose.example.yaml up -d
-```
-
-The example publishes port `30000`, serves model alias `qwen38-flash-next`,
-uses `restart: "no"`, and enables a 500K YaRN context profile. Watch memory
-headroom closely: the measured host had about 12 GiB available after startup.
-
-## Why not native `FP8_PB_WO` dispatch?
-
-The quant metadata resolver correctly identifies the 300 side layers, but the
-pinned preview combines a legacy `MergedColumnParallelLinear.load_weights`
-path with a newer parameter contract and fails while loading a fused layer:
+Set the matched reduced-vocabulary files together. Never mix a vocabulary array
+with a head generated from a different token-ID order.
 
 ```text
-AttributeError: 'MergedColumnParallelLinear' object has no attribute 'data'
+VLLM_MTP_DRAFT_VOCAB=/draft/studio_draft_vocab_65536_all.npy
+VLLM_MTP_DRAFT_HEAD=/draft/mtp_draft_head_studio_65536_all_fp8.safetensors
 ```
 
-This lane therefore reuses the proven block-FP8 `Fp8Config` loader and only
-retargets its owner class to `ModelOptMixedPrecisionConfig`.
+The `studio_` prefix is a historical filename retained for compatibility. The
+pair contains token IDs and matched head rows only, with no source prompts or
+application dependency.
+
+Use [`recipes/nvidia-hybrid/compose.example.yaml`](recipes/nvidia-hybrid/compose.example.yaml)
+for vLLM. The WSL2-specific boundary and non-portable QSA extension warning are
+documented in [`docs/WINDOWS-WSL2-RTX-PRO-6000.md`](docs/WINDOWS-WSL2-RTX-PRO-6000.md).
+Do not enable `--enforce-eager` in the validated performance profile.
+
+### Build the SGLang runtime
+
+`Dockerfile.sglang` and every startup patch it invokes are tracked here. Build
+and runtime auditing are documented in [`docs/PATCH-MANIFEST.md`](docs/PATCH-MANIFEST.md),
+while the matched 65K draft setup and measured Spark profile are in
+[`docs/PERSONAL-65K-SGLANG-2026-09-19.md`](docs/PERSONAL-65K-SGLANG-2026-09-19.md).
+
+## Precision layout
+
+| Component | BF16 reference | FP8 recommended |
+| --- | --- | --- |
+| Main routed experts | NVIDIA W4A4 NVFP4 | NVIDIA W4A4 NVFP4 |
+| 300 GDN/QSA/shared-expert side linears | block-FP8 E4M3 | block-FP8 E4M3 |
+| Main target `lm_head` | BF16 | block-FP8 E4M3, 128x128 |
+| MTP routed experts | Inferact per-expert NVFP4 donor | Inferact per-expert NVFP4 donor |
+| Reduced MTP head | optional BF16 or FP8 matched head | FP8 matched head recommended |
+| PLE/n-gram table | FP8 E4M3, NVMe mmap | FP8 E4M3, NVMe mmap |
+| Validated KV/recurrent state | BF16 | BF16 |
+
+The 300 converted side linears cover GDN `in_proj_qkv`, `in_proj_z`, `out_proj`;
+QSA q/k/v/o; and shared-expert gate/up/down projections. `in_proj_ba`, norms,
+gates and hyperconnection parameters remain BF16. The hybrid shim is retargeted
+from `ModelOptNvFp4Config` to NVIDIA's real `ModelOptMixedPrecisionConfig`.
+
+The target model always verifies speculative tokens. Reducing and quantizing
+the draft output head changes draft cost and proposal distribution; it does not
+remove full-target verification.
+
+## Benchmark summary
+
+### DGX Spark — patched vLLM
+
+Hardware: GB10, 128 GB unified memory. Profile: MTP 3, personal 65K draft,
+deterministic QSA top-k, BF16 KV/recurrent state, 500K YaRN and prefix caching.
+
+| Profile | 8K prefill | 8K decode | 100K prefill | 100K decode |
+| --- | ---: | ---: | ---: | ---: |
+| NVIDIA BF16-side + NVFP4 MTP | 2253.28 | 20.36 | 2177.88 | 21.21 |
+| FP8-side + BF16 `lm_head` + NVFP4 MTP | 2303.64 | 24.77 | 2129.24 | 25.92 |
+| **FP8-side + FP8 `lm_head` + NVFP4 MTP** | 2233.42 | **27.34** | **2141.79** | **28.11** |
+| RadixArk FP8-side + NVFP4 MTP | 2341.93 | 26.05 | 2154.00 | 26.86 |
+
+### DGX Spark — SGLang v0.5.20
+
+| Draft configuration | Prefill tok/s | Decode tok/s | MTP acceptance |
+| --- | ---: | ---: | ---: |
+| Complete vocabulary | 2604.22 | 37.31 | 46.94% |
+| Personal 65K, first run | 2604.29 | 37.47 | 48.61% |
+| Personal 65K, hot repeat | 2663.39 | 42.53 | 56.11% |
+
+### RTX PRO 6000 — WSL2 patched vLLM
+
+| Prompt / output | Runs | Mean TTFT | Mean prefill | Mean decode | Mean MTP | Mean end-to-end |
+| --- | ---: | ---: | ---: | ---: | ---: | ---: |
+| 4,088 / 512 tokens | 3 | 0.400 s | 10,223.18 tok/s | 91.66 tok/s | 47.66% | 5.985 s |
+
+All detailed methodology, per-run WSL2 values, acceptance-scaled estimates and
+scope limits are in [`docs/BENCHMARKS.md`](docs/BENCHMARKS.md).
+
+## Quality validation
+
+The local 162-case suite is a regression check, not an official Qwen, NVIDIA or
+community benchmark. The FP8-side/BF16-`lm_head` checkpoint scored 144, 146 and
+148; the FP8-`lm_head` checkpoint scored 147, 146 and 148. Tool calling was 4/4
+and long-context retrieval was 6/6 in every published-checkpoint run. Boundary
+MMLU items varied between runs even at temperature zero, so report ranges rather
+than selecting one favorable score.
+
+See [`docs/QUALITY-VALIDATION.md`](docs/QUALITY-VALIDATION.md) for paired counts,
+non-determinism evidence and interpretation limits.
+
+## Capabilities and limitations
+
+- The checkpoint retains the upstream multimodal processor and architecture.
+  Text, image and sampled video-frame inputs work with a compatible runtime;
+  `image-text-to-text` is therefore the correct Hugging Face pipeline category.
+- Stock vLLM and stock SGLang do not load every mixed-precision component used
+  here. Use the pinned images and the complete patch manifest.
+- The optional deterministic QSA binary built for GB10 is not portable to RTX
+  PRO 6000. Rebuild it for the workstation architecture or use the validated
+  standard fallback.
+- Personal 65K draft vocabulary improves the measured workload but is not
+  universally optimal. Measure acceptance on your own output distribution.
+- Context capacity, concurrent capacity and speed depend on KV dtype, recurrent
+  state, host memory, PLE residency and runtime arguments. Do not infer a 256K
+  or two-stream speed from the published 4K WSL2 result.
+
+## Documentation
+
+- [`docs/BENCHMARKS.md`](docs/BENCHMARKS.md) — complete performance evidence.
+- [`docs/QUALITY-VALIDATION.md`](docs/QUALITY-VALIDATION.md) — local regression evidence.
+- [`docs/FP8-LM-HEAD.md`](docs/FP8-LM-HEAD.md) — FP8 target/draft-head conversion.
+- [`docs/BUILD-FROM-SOURCE.md`](docs/BUILD-FROM-SOURCE.md) — reproduce the checkpoint.
+- [`docs/WINDOWS-WSL2-RTX-PRO-6000.md`](docs/WINDOWS-WSL2-RTX-PRO-6000.md) — workstation runtime.
+- [`docs/PERSONAL-65K-SGLANG-2026-09-19.md`](docs/PERSONAL-65K-SGLANG-2026-09-19.md) — SGLang 65K path.
+- [`docs/PATCH-MANIFEST.md`](docs/PATCH-MANIFEST.md) — required runtime patches.
+- [`docs/HOW-IT-WORKS.md`](docs/HOW-IT-WORKS.md) — architecture and implementation notes.
 
 ## Related work and credits
 
-- [blazux/qwen3.8-Flash-DGX](https://github.com/blazux/qwen3.8-Flash-DGX):
-  complete single-Spark baseline, PLE mmap, prefix-cache/QSA fixes, FP8-side
-  hybrid conversion, reduced draft vocabulary, and NVFP4 MTP graft design.
-- [tonyd2wild/Qwen3.8-Flash-Next-NVFP4-DGX-Spark](https://github.com/tonyd2wild/Qwen3.8-Flash-Next-NVFP4-DGX-Spark):
-  official NVIDIA checkpoint on one Spark without requantizing its side layers.
-- [dolf3131/qwen3.8-flash-next-dgx-spark](https://github.com/dolf3131/qwen3.8-flash-next-dgx-spark):
+- [blazux/qwen3.8-Flash-DGX](https://github.com/blazux/qwen3.8-Flash-DGX) —
+  single-Spark baseline, PLE mmap, prefix-cache/QSA fixes, hybrid conversion and
+  reduced-draft work.
+- [tonyd2wild/Qwen3.8-Flash-Next-NVFP4-DGX-Spark](https://github.com/tonyd2wild/Qwen3.8-Flash-Next-NVFP4-DGX-Spark) —
+  NVIDIA checkpoint on one Spark without requantizing its side layers.
+- [dolf3131/qwen3.8-flash-next-dgx-spark](https://github.com/dolf3131/qwen3.8-flash-next-dgx-spark) —
   official NVIDIA mixed-precision and single-Spark loader research.
-- [Saren-Arterius/qwen3.8-Flash-DGX-AutoRound](https://github.com/Saren-Arterius/qwen3.8-Flash-DGX-AutoRound):
-  FP8 side-layer conversion and GB10 kernel work credited by the base project.
-- [Inferact/Qwen3.8-Flash-Next-NVFP4](https://huggingface.co/Inferact/Qwen3.8-Flash-Next-NVFP4):
-  pinned NVFP4 MTP donor.
+- [Saren-Arterius/qwen3.8-Flash-DGX-AutoRound](https://github.com/Saren-Arterius/qwen3.8-Flash-DGX-AutoRound) —
+  FP8 side-layer conversion and GB10 kernel work credited upstream.
+- [Inferact/Qwen3.8-Flash-Next-NVFP4](https://huggingface.co/Inferact/Qwen3.8-Flash-Next-NVFP4) —
+  pinned per-expert NVFP4 MTP donor.
 
-This is an independent integration and validation recipe, not an NVIDIA
-official repository. NVIDIA, DGX, and related names are trademarks of their
-respective owners.
-
-The code and patches in this repository retain the upstream MIT license. The
-Hugging Face repository redistributes the converted checkpoint under the model
-licenses applicable to the NVIDIA parent and Inferact donor, including the
-NVIDIA Open Model License and the terms stated on each model card.
-
-Redistributed derivative weights include the required attribution in
-[`NOTICE`](NOTICE). A copy of the NVIDIA Open Model License and the applicable
-Qwen Community License accompany the repository as
-`NVIDIA-OPEN-MODEL-LICENSE.pdf` and `QWEN-COMMUNITY-LICENSE.txt`.
+This is an independent integration and validation project, not an NVIDIA
+official repository. Code and patches retain applicable upstream MIT notices.
+Redistributed derivative weights remain subject to the NVIDIA Open Model
+License, Qwen Community License and donor terms. Required attribution is in
+[`NOTICE`](NOTICE); license copies are included in the repository.
