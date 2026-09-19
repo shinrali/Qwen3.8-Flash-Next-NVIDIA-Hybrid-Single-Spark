@@ -41,7 +41,8 @@ def apply() -> None:
         return
 
     from vllm.model_executor.layers.linear import LinearBase
-    from vllm.model_executor.layers.quantization.fp8 import Fp8Config
+    from vllm.model_executor.layers.quantization.fp8 import Fp8Config, Fp8LinearMethod
+    from vllm.model_executor.layers.vocab_parallel_embedding import ParallelLMHead
     from vllm.transformers_utils.config import get_safetensors_params_metadata
 
     orig_mapper = cfg_cls.apply_vllm_mapper
@@ -73,6 +74,8 @@ def apply() -> None:
 
     def _norm(name: str) -> str:
         """Compare on the part after 'layers.' so 'model.layers.3.x' == 'language_model.model.layers.3.x'."""
+        if name == "lm_head" or name.endswith(".lm_head"):
+            return "lm_head"
         i = name.find("layers.")
         return name[i:] if i >= 0 else name
 
@@ -99,7 +102,7 @@ def apply() -> None:
         return hit
 
     def get_quant_method(self, layer, prefix):
-        if isinstance(layer, LinearBase) and self._is_fp8_layer(prefix):
+        if isinstance(layer, (LinearBase, ParallelLMHead)) and self._is_fp8_layer(prefix):
             fp8_cfg = getattr(self, "_fp8_cfg", None)
             if fp8_cfg is None:
                 fp8_cfg = Fp8Config(
@@ -112,6 +115,9 @@ def apply() -> None:
             st = self.__dict__.get("_fp8_stats")
             if st and st["fp8"] in (1, 50, 100, 150, 192, 200):
                 logger.info("fp8 hybrid: %d fused modules dispatched to Fp8LinearMethod so far (e.g. %s)", st["fp8"], prefix)
+            if isinstance(layer, ParallelLMHead):
+                logger.info("fp8 hybrid: lm_head -> Fp8LinearMethod")
+                return Fp8LinearMethod(fp8_cfg)
             return fp8_cfg.get_quant_method(layer, prefix)
         return orig_gqm(self, layer, prefix)
 

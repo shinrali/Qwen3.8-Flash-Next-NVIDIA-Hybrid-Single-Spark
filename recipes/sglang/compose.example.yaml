@@ -1,0 +1,53 @@
+name: qwen38-flash-next-sglang
+services:
+  qwen38-flash-next:
+    build:
+      context: ../..
+      dockerfile: Dockerfile.sglang
+    image: qwen38-flash-next-sglang:v0.5.20
+    init: true
+    restart: "no"
+    gpus: all
+    ipc: host
+    shm_size: 16gb
+    ports:
+      - "30000:30000"
+    environment:
+      HF_HUB_OFFLINE: "1"
+      TRANSFORMERS_OFFLINE: "1"
+      SGLANG_CACHE_DIR: /root/.cache/sglang
+      SGLANG_QWEN4_PLE_FILE_RSS_BUDGET_GB: "2"
+      SGLANG_MTP_DRAFT_HEAD: /model/mtp_draft_head_studio_65536_all_fp8.safetensors
+    volumes:
+      - ${FINAL_MODEL_DIR:?set FINAL_MODEL_DIR}:/model:ro
+      - ${CACHE_DIR:?set CACHE_DIR}:/root/.cache
+    secrets:
+      - llm_api_key
+    entrypoint:
+      - sh
+      - -c
+      - >-
+        set -e;
+        export SGLANG_QWEN4_PLE_REUSE_FINGERPRINT="$$(python3 /opt/pixion/sglang_ple_reuse_helper.py fingerprint /model)";
+        python3 /opt/pixion/sglang_ple_reuse_helper.py prepare /model /root/.cache/sglang/ple/model;
+        python3 -c "import numpy as np, torch; torch.save(torch.from_numpy(np.load('/model/studio_draft_vocab_65536_all.npy')).to(torch.int64), '/tmp/hot65536.pt')";
+        exec sglang serve --model-path /model --served-model-name qwen38-flash-next
+        --host 0.0.0.0 --port 30000 --api-key "$$(cat /run/secrets/llm_api_key)"
+        --moe-runner-backend flashinfer_cutlass --fp4-gemm-backend flashinfer_cutlass
+        --page-size 64 --chunked-prefill-size 4096 --context-length 262144
+        --speculative-algorithm NEXTN --speculative-num-steps 3
+        --speculative-eagle-topk 1 --speculative-num-draft-tokens 4
+        --speculative-token-map /tmp/hot65536.pt --max-running-requests 1
+        --max-mamba-cache-size 10 --reasoning-parser qwen3 --tool-call-parser auto
+        --mem-fraction-static 0.85 --enable-metrics --ple-offload-embedding
+        --ple-offload-backend file
+    healthcheck:
+      test: [CMD, python3, -c, "import urllib.request; urllib.request.urlopen('http://127.0.0.1:30000/health', timeout=5)"]
+      interval: 30s
+      timeout: 10s
+      retries: 5
+      start_period: 30m
+    stop_grace_period: 2m
+secrets:
+  llm_api_key:
+    file: ${API_KEY_FILE:?set API_KEY_FILE}

@@ -1,0 +1,76 @@
+name: qwen38-flash-next-vllm-wsl2
+services:
+  qwen38-flash-next:
+    image: nvidia-hybrid-single-spark:fp8-draft
+    init: true
+    restart: "no"
+    gpus: all
+    ipc: host
+    shm_size: 16gb
+    ports:
+      - "30000:8000"
+    environment:
+      CUDA_DEVICE_ORDER: PCI_BUS_ID
+      CUDA_VISIBLE_DEVICES: ${CUDA_VISIBLE_DEVICES:?set CUDA_VISIBLE_DEVICES}
+      HF_HUB_OFFLINE: "1"
+      TRANSFORMERS_OFFLINE: "1"
+      VLLM_PLE_MMAP: "1"
+      VLLM_PLE_MMAP_WORKERS: "32"
+      VLLM_PLE_MMAP_PREWARM: "0"
+      VLLM_PLE_MMAP_MADVISE: random
+      VLLM_FP8_PAD_M4: "0"
+      VLLM_FP8_HYBRID: "1"
+      VLLM_USE_DEEP_GEMM: "0"
+      VLLM_USE_FLASHINFER_SAMPLER: "1"
+      VLLM_ALLOW_LONG_MAX_MODEL_LEN: "1"
+      VLLM_MTP_DRAFT_VOCAB: /draft/studio_draft_vocab_65536_all.npy
+      VLLM_MTP_DRAFT_HEAD: /draft/mtp_draft_head_studio_65536_all_fp8.safetensors
+    volumes:
+      - ${FINAL_MODEL_DIR:?set FINAL_MODEL_DIR}:/model:ro
+      - ${DRAFT_DIR:?set DRAFT_DIR}:/draft:ro
+      - ${CACHE_DIR:?set CACHE_DIR}:/root/.cache
+    command:
+      - --model
+      - /model
+      - --served-model-name
+      - qwen38-flash-next
+      - --host
+      - 0.0.0.0
+      - --port
+      - "8000"
+      - --api-key
+      - ${LLM_API_KEY:?set LLM_API_KEY}
+      - --load-format
+      - safetensors
+      - --max-model-len
+      - "262144"
+      - --max-num-seqs
+      - "2"
+      - --kv-cache-memory-bytes
+      - 16g
+      - --enable-prefix-caching
+      - --enable-prompt-tokens-details
+      - --enable-chunked-prefill
+      - --enable-logging-iteration-details
+      - --max-num-batched-tokens
+      - "8192"
+      - -cc.cudagraph_mode=PIECEWISE
+      - '-cc.splitting_ops=["vllm::unified_attention_with_output","vllm::unified_mla_attention_with_output","vllm::mamba_mixer2","vllm::mamba_mixer","vllm::short_conv","vllm::qwen3_8_flash_next_ple_short_conv","vllm::qwen3_8_flash_next_qsa_with_output","vllm::linear_attention","vllm::qwen_gdn_attention_core","vllm::qwen_gdn_attention_core_fused_norm_packed","vllm::sparse_attn_indexer","vllm::ple_mmap_lookup"]'
+      - --no-enable-flashinfer-autotune
+      - --kv-cache-dtype
+      - auto
+      - --enable-auto-tool-choice
+      - --tool-call-parser
+      - qwen3_xml
+      - --reasoning-parser
+      - qwen3
+      - --default-chat-template-kwargs
+      - '{"enable_thinking":true}'
+      - --speculative-config
+      - '{"method":"mtp","num_speculative_tokens":3,"max_model_len":262144}'
+    healthcheck:
+      test: [CMD, python3, -c, "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8000/health', timeout=5)"]
+      interval: 30s
+      timeout: 10s
+      retries: 5
+      start_period: 30m

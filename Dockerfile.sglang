@@ -1,0 +1,15 @@
+FROM lmsysorg/sglang:v0.5.20-cu130
+
+COPY src/sglang/patch_sglang_redact_secrets.py /opt/pixion/
+COPY src/sglang/patch_sglang_prefill_progress.py /opt/pixion/
+COPY src/sglang/patch_sglang_ple_reuse.py /opt/pixion/
+COPY src/sglang/patch_sglang_block_fp8_lmhead.py /opt/pixion/
+COPY src/sglang/patch_sglang_draft65k.py /opt/pixion/
+COPY src/sglang/sglang_ple_reuse_helper.py /opt/pixion/
+
+RUN python3 /opt/pixion/patch_sglang_redact_secrets.py \
+ && python3 /opt/pixion/patch_sglang_prefill_progress.py \
+ && python3 /opt/pixion/patch_sglang_ple_reuse.py \
+ && python3 /opt/pixion/patch_sglang_block_fp8_lmhead.py \
+ && python3 /opt/pixion/patch_sglang_draft65k.py \
+ && python3 -m py_compile /opt/pixion/*.py

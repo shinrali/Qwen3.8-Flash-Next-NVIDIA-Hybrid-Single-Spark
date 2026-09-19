@@ -1,0 +1,7 @@
+FROM nvidia-hybrid-single-spark:mtp
+
+ARG SP=/usr/local/lib/python3.12/dist-packages
+COPY src/patch_hybrid_mixed_config.py /tmp/patch_hybrid_mixed_config.py
+RUN python3 /tmp/patch_hybrid_mixed_config.py \
+      ${SP}/vllm_fp8_hybrid_modelopt.py \
+ && rm /tmp/patch_hybrid_mixed_config.py

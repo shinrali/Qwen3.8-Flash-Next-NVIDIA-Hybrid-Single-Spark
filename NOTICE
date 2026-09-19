@@ -1,0 +1,14 @@
+Licensed by NVIDIA Corporation under the NVIDIA Open Model License
+
+This repository distributes a derivative checkpoint based on:
+
+- nvidia/Qwen3.8-Flash-Next-NVFP4
+- Inferact/Qwen3.8-Flash-Next-NVFP4 (NVFP4 MTP expert donor only)
+
+The derivative converts selected dense side-layer weights to blockwise FP8
+E4M3 and replaces the NVIDIA FP8 MTP routed experts with the pinned Inferact
+NVFP4 MTP routed experts. No fine-tuning was performed.
+
+The integration code derives from blazux/qwen3.8-Flash-DGX and retains its MIT
+license and contributor notices. Model weights remain subject to the NVIDIA
+Open Model License and applicable Qwen Community License terms.
