@@ -51,13 +51,20 @@ compatibility, but the vLLM runtime is also validated under Windows/WSL2.
 | --- | --- | --- | --- |
 | DGX Spark, GB10 128 GB | vLLM pinned preview | 500K YaRN profile; BF16 KV/recurrent state | 100K prefill 2141.79 tok/s, decode 28.11 tok/s |
 | DGX Spark, GB10 128 GB | SGLang v0.5.20 | 262,144 context; personal 65K FP8 draft pair | hot run 2663.39 prefill, 42.53 decode tok/s, 56.11% MTP |
-| Windows + Docker Desktop/WSL2, RTX PRO 6000 Blackwell | same patched vLLM preview | BF16 KV, 16 GiB explicit KV, two concurrent 262,144-token slots | functionally validated; supplied run notes did not preserve a reliable tok/s benchmark |
+| Windows + Docker Desktop/WSL2, RTX PRO 6000 Blackwell | same patched vLLM preview | BF16 KV, 16 GiB explicit KV, two concurrent 262,144-token slots | 4K single-stream: 10,223.18 prefill, 91.66 decode tok/s, 47.66% MTP |
 
 The quality regression belongs to the checkpoint, not to a claim that every
 backend produces byte-identical scheduling. Three vLLM runs scored 147, 146 and
 148 out of 162; tools were 4/4 and long-context retrieval was 6/6 each time.
 See `docs/WINDOWS-WSL2-RTX-PRO-6000.md`,
 `docs/PERSONAL-65K-SGLANG-2026-09-19.md`, and `docs/PATCH-MANIFEST.md`.
+
+The WSL2 result is the mean of three temperature-zero runs after one warm-up:
+4,088 prompt tokens and 512 generated tokens per run, 0.400 s mean TTFT and
+5.985 s mean end-to-end latency. The harness inserts a new UUID nonce near the
+start of every prompt, so the 10.2K tok/s figure is not a repeated-prefix cache
+measurement. It is a bounded 4K, single-stream result; it does not establish
+256K prefill speed or two-stream aggregate throughput.
 
 The checkpoint retains the base model's multimodal architecture and processor:
 text, image, and video-frame inputs are supported by a compatible vLLM build.

@@ -42,8 +42,10 @@ It is intended to reduce the final-projection bandwidth cost without moving to
 an INT3 target model.
 
 The primary validation host is one DGX Spark. The same patched vLLM checkpoint
-has also been functionally validated under Windows Docker Desktop/WSL2 on an
-RTX PRO 6000 Blackwell with two 262,144-token sequence slots.
+has also been validated under Windows Docker Desktop/WSL2 on an RTX PRO 6000
+Blackwell with two 262,144-token sequence slots. A separate 4K single-stream
+run measured 10,223.18 effective prefill tok/s, 91.66 decode tok/s, 0.400 s TTFT
+and 47.66% MTP acceptance.
 
 For users arriving from the BF16-`lm_head` parent: this is the faster tested
 lane. On the same 100K profile it measured 28.11 instead of 25.92 decode tok/s
@@ -149,10 +151,14 @@ The source repository contains both the vLLM and SGLang runtime patches. The
 personal pair has been exercised on DGX Spark with both backends and with vLLM
 under Windows Docker Desktop/WSL2 on an RTX PRO 6000 Blackwell. Under WSL2 the
 validated configuration uses 16 GiB explicit BF16 KV, `max_model_len=262144`
-and `max_num_seqs=2`, providing two 256K-class slots. The supplied workstation
-record confirms functional capacity but does not contain a reliable tok/s run,
-so no workstation throughput is inferred. See the linked source repository for
-the exact platform notes and patch manifest.
+and `max_num_seqs=2`, providing two 256K-class slots. A one-warm-up/three-run,
+temperature-zero speed profile averaged 4,088 prompt tokens, 512 generated
+tokens, 10,223.18 effective prefill tok/s, 91.66 decode tok/s, 0.400 s TTFT,
+47.66% MTP acceptance and 5.985 s end-to-end. The harness inserts a fresh UUID
+nonce near the start of every prompt, so the reported prefill is not a repeated
+4K prefix-cache hit. This is a 4K single-stream result, not a 256K or concurrent
+throughput claim. See the linked source repository for per-run values, exact
+platform notes and the patch manifest.
 
 ## Reduced-head A/B on one DGX Spark
 

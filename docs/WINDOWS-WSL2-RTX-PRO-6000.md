@@ -17,10 +17,35 @@ The validated boundary is:
 - CUDA graphs enabled in `PIECEWISE` mode;
 - no `--enforce-eager`.
 
-The supplied workstation notes confirm functional loading and concurrency but
-do not preserve a reliable prefill/decode benchmark. Do not reuse the DGX Spark
-tok/s figures as RTX PRO 6000 measurements. Observed utilization was about 50%,
-so workstation-specific optimization remains open.
+The workstation has now completed a reproducible short-context throughput run.
+This replaces the earlier note that no reliable RTX PRO 6000 tok/s record was
+available. It does not replace the separate two-slot functional validation.
+
+## Measured 4K single-stream throughput
+
+Measurement date: 2026-09-19 AEST. The OpenAI-compatible speed harness used one
+warm-up followed by three formal runs, `temperature=0`, a nominal 4,096-token
+input and a 512-token output limit. Each formal request reached the output limit.
+
+| Run | Prompt tokens | TTFT | Effective prefill | Decode | MTP acceptance | End-to-end |
+| ---: | ---: | ---: | ---: | ---: | ---: | ---: |
+| 1 | 4,069 | 0.400 s | 10,171.26 tok/s | 92.96 tok/s | 48.95% | 5.897 s |
+| 2 | 4,095 | 0.407 s | 10,056.50 tok/s | 86.62 tok/s | 41.85% | 6.307 s |
+| 3 | 4,100 | 0.393 s | 10,441.78 tok/s | 95.38 tok/s | 52.17% | 5.750 s |
+| **Mean** | **4,088** | **0.400 s** | **10,223.18 tok/s** | **91.66 tok/s** | **47.66%** | **5.985 s** |
+
+`Effective prefill` is `prompt_tokens / TTFT`, so it includes request transport,
+tokenization, scheduling and time to first streamed token rather than claiming a
+pure GPU-kernel rate. The harness places a fresh UUID nonce near the beginning of
+every generated prompt. Prefix identity therefore breaks before the large test
+corpus, preventing the warm-up and earlier runs from turning this into a cached
+4K-prefill result. A small fixed header before the nonce may still be reusable.
+
+This is a single-stream 4K result. It does not measure 65K/256K prefill,
+two-stream aggregate throughput, latency under concurrent prefill and decode, or
+performance with the KV pool near capacity. Those remain separate follow-up
+profiles. The public result intentionally omits the private test endpoint and
+credentials.
 
 ## Required files
 
@@ -72,5 +97,6 @@ arguments are:
 The current vLLM build reports that fused multi-step draft decode is not
 supported by `QWEN38_FLASH_NEXT_EXP_QSA_STATE`; it rebuilds attention metadata
 between draft steps. Together with PLE mmap scheduling, this is a likely source
-of the utilization gap. Useful follow-up A/Bs are MTP off, MTP 1 and MTP 3 with
-identical prompts, output lengths, PLE and KV settings.
+of the remaining utilization gap. Useful follow-up A/Bs are MTP off, MTP 1 and
+MTP 3 with identical prompts, output lengths, PLE and KV settings, plus 65K and
+256K single-stream and two-stream profiles.
