@@ -3,3 +3,5 @@
 __pycache__/
 *.orig
 .DS_Store
+.env
+!.env.example

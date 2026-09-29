@@ -58,6 +58,15 @@ The reproducible converter, pinned runtime patches, Dockerfiles and validation
 notes are in
 [`shinrali/Qwen3.8-Flash-Next-NVIDIA-Hybrid-Single-Spark`](https://github.com/shinrali/Qwen3.8-Flash-Next-NVIDIA-Hybrid-Single-Spark).
 
+The current DGX Spark long-context profile uses the official
+`vllm/vllm-openai:v0.30.0` image with MiaAI Lab's file-backed FP8 PLE patch and
+this project's mixed-precision loaders. At native 262,144 context with 16 GiB
+BF16 KV it profiled 554,044 KV tokens (2.11 full-length slots). A four-stage
+incremental long-context tool test reached 258,310 prompt tokens and scored
+32/32, with 2,715.46 tok/s cold effective input on the first stage and 66.35
+tok/s mean decode across all four stages. Later-stage input rates include
+prefix-cache reuse.
+
 ## Precision layout
 
 | Component | Format |
@@ -77,9 +86,22 @@ by the complete target model.
 
 ## Runtime requirement
 
-Stock vLLM does not yet load this checkpoint. It needs the opt-in
-`ParallelLMHead` FP8 companion-scale loader and Qwen3.8 model plumbing included
-in the linked GitHub repository. Build the experimental image:
+The checkpoint still needs the opt-in `ParallelLMHead` FP8 companion-scale
+loader and mixed-precision dispatch included in the linked GitHub repository.
+For DGX Spark, the recommended vLLM v0.30 profile mounts the complete patch set
+into the official image at startup:
+
+```bash
+git clone https://github.com/shinrali/Qwen3.8-Flash-Next-NVIDIA-Hybrid-Single-Spark.git
+cd Qwen3.8-Flash-Next-NVIDIA-Hybrid-Single-Spark/recipes/vllm-v030-mmap
+cp .env.example .env
+# Edit MODEL_DIR, CACHE_DIR and VLLM_API_KEY.
+docker compose -f compose.example.yaml config
+docker compose -f compose.example.yaml up -d
+```
+
+The legacy preview runtime remains available for reproducing the older 500K
+YaRN measurements. Build that experimental image as follows:
 
 ```bash
 git clone https://github.com/shinrali/Qwen3.8-Flash-Next-NVIDIA-Hybrid-Single-Spark.git

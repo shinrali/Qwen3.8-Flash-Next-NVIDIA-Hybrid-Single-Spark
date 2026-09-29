@@ -9,7 +9,7 @@ Run Qwen3.8-Flash-Next on one NVIDIA DGX Spark or a sufficiently large
 Blackwell workstation. The project combines NVIDIA's official NVFP4 target
 checkpoint with locally converted FP8 side layers, an NVFP4 MTP expert graft,
 FP8 PLE mmap/offload and optional matched 65K FP8 draft heads. It publishes two
-checkpoint lanes and three validated runtime profiles across vLLM and SGLang.
+checkpoint lanes and four validated runtime profiles across vLLM and SGLang.
 
 This repository extends
 [blazux/qwen3.8-Flash-DGX](https://github.com/blazux/qwen3.8-Flash-DGX)
@@ -35,6 +35,7 @@ a single cross-platform leaderboard.
 
 | Host | Backend | Checkpoint and draft | Validated boundary | Representative measurement |
 | --- | --- | --- | --- | --- |
+| **DGX Spark, GB10 128 GB** | **official vLLM v0.30.0 + MiaAI file-backed PLE** | **FP8 `lm_head` + personal 65K FP8 draft** | **native 262,144 context; 16 GiB BF16 KV; 2.11 full-context slots** | **four-stage long-KV 32/32; cold R11 prefill 2715.46; mean decode 66.35 tok/s** |
 | DGX Spark, GB10 128 GB | patched vLLM preview | FP8 `lm_head` + personal 65K FP8 draft | 500K YaRN profile; BF16 KV/recurrent state | 100K: 2141.79 prefill, 28.11 decode tok/s |
 | DGX Spark, GB10 128 GB | SGLang v0.5.20 | FP8 `lm_head` + personal 65K FP8 draft | 262,144 context; persistent FP8 PLE | 4K hot run: 2663.39 prefill, 42.53 decode tok/s, 56.11% MTP |
 | RTX PRO 6000 Blackwell, Windows Docker Desktop/WSL2 | same patched vLLM preview | FP8 `lm_head` + personal 65K FP8 draft | BF16 KV; 16 GiB explicit KV; two 262,144-token slots | 4K three-run mean: 10,223.18 prefill, 91.66 decode tok/s, 47.66% MTP |
@@ -58,7 +59,25 @@ Use the BF16 reference repository instead only when you deliberately want the
 rollback lane. The source NVIDIA checkpoint is never modified by the conversion
 scripts; local preparation always targets an isolated destination.
 
-### Build the patched vLLM runtime
+### Run the vLLM 0.30 mmap profile on DGX Spark
+
+The current long-context Spark profile uses the official vLLM v0.30.0 image
+and mounts the complete patch set at startup, so no additional image is built:
+
+```bash
+cd recipes/vllm-v030-mmap
+cp .env.example .env
+# Edit MODEL_DIR, CACHE_DIR and VLLM_API_KEY.
+docker compose -f compose.example.yaml config
+docker compose -f compose.example.yaml up -d
+```
+
+See [`recipes/vllm-v030-mmap/README.md`](recipes/vllm-v030-mmap/README.md) for
+the exact memory boundary, cold-start behavior, patch attribution and 262K
+long-context validation. The public generic 65K pair is used by the example;
+the measurement row above used a personally optimized matched pair.
+
+### Build the legacy patched vLLM preview runtime
 
 ```bash
 git clone https://github.com/shinrali/Qwen3.8-Flash-Next-NVIDIA-Hybrid-Single-Spark.git
@@ -121,6 +140,23 @@ the draft output head changes draft cost and proposal distribution; it does not
 remove full-target verification.
 
 ## Benchmark summary
+
+### DGX Spark — official vLLM v0.30.0 + MiaAI mmap PLE
+
+Profile: native 262,144 context, two sequences, explicit 16 GiB BF16 KV,
+MTP 3, prefix caching and file-backed FP8 PLE. The profiled KV pool was 554,044
+tokens, or 2.11 full-context slots.
+
+| Stage | Prompt tokens | TTFT | Effective input | Decode | Checks |
+| ---: | ---: | ---: | ---: | ---: | ---: |
+| R11 | 116,392 | 42.86 s | 2715.46 tok/s | 62.50 tok/s | 8/8 |
+| R12 | 137,352 | 8.86 s | 15500.26 tok/s | 68.18 tok/s | 8/8 |
+| R13 | 201,341 | 24.79 s | 8122.53 tok/s | 66.57 tok/s | 8/8 |
+| R14 | 258,310 | 23.20 s | 11132.82 tok/s | 68.13 tok/s | 8/8 |
+
+Stages R12–R14 reused the conversation prefix, so their effective-input values
+are not pure prefill throughput. The complete run scored 32/32; cumulative MTP
+counters were 429 accepted of 434 drafted tokens for this tool-call workload.
 
 ### DGX Spark — patched vLLM
 
@@ -187,6 +223,7 @@ non-determinism evidence and interpretation limits.
 - [`docs/BUILD-FROM-SOURCE.md`](docs/BUILD-FROM-SOURCE.md) — reproduce the checkpoint.
 - [`docs/WINDOWS-WSL2-RTX-PRO-6000.md`](docs/WINDOWS-WSL2-RTX-PRO-6000.md) — workstation runtime.
 - [`docs/PERSONAL-65K-SGLANG-2026-09-19.md`](docs/PERSONAL-65K-SGLANG-2026-09-19.md) — SGLang 65K path.
+- [`recipes/vllm-v030-mmap/README.md`](recipes/vllm-v030-mmap/README.md) — official vLLM 0.30 + file-backed PLE profile.
 - [`docs/PATCH-MANIFEST.md`](docs/PATCH-MANIFEST.md) — required runtime patches.
 - [`docs/HOW-IT-WORKS.md`](docs/HOW-IT-WORKS.md) — architecture and implementation notes.
 

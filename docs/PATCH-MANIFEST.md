@@ -20,6 +20,25 @@ unpublished patch. All paths below are tracked by Git.
 publication omitted it; it is now part of the tracked release and must not be
 removed while that Dockerfile exists.
 
+## vLLM v0.30 file-backed PLE path
+
+The self-contained runtime lives under `recipes/vllm-v030-mmap/` and mounts
+these files into the official vLLM v0.30.0 image:
+
+- `patches/apply-and-serve.sh`
+- `patches/patch_ple_mmap_v030.py`
+- `patches/patch_qwen4_exp_fp8_heads.py`
+- `patches/patch_vllm_v030_fp8_lm_head_scale.py`
+- `patches/vllm_fp8_hybrid_modelopt.py`
+- `patches/patch_hybrid_mixed_config.py`
+- `patches/patch_modelopt_hybrid_import.py`
+- `patches/patch_safetensors_index_filter.py`
+- `patches/patch_prefill_metrics.py`
+
+The PLE patch is an unmodified AGPL-3.0-or-later MiaAI Lab file. Exact source,
+commit and SHA-256 are recorded in
+`recipes/vllm-v030-mmap/THIRD_PARTY_NOTICES.md`.
+
 ## SGLang v0.5.20 path
 
 - `src/sglang/patch_sglang_block_fp8_lmhead.py`

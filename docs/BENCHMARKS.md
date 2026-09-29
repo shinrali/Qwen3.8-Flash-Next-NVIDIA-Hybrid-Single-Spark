@@ -4,6 +4,41 @@ This document keeps the detailed measurements out of the project entrance page.
 Results use different prompt lengths, runtimes and hosts unless explicitly
 described as paired. Do not treat the tables as one cross-platform leaderboard.
 
+## DGX Spark — vLLM v0.30.0 with MiaAI file-backed PLE
+
+Measurement date: 2026-09-29 AEST. Hardware: one GB10 DGX Spark with 128 GB
+unified memory. Runtime: official `vllm/vllm-openai:v0.30.0`, this project's
+FP8-side/FP8-`lm_head`/NVFP4-MTP checkpoint, a personally optimized matched 65K
+FP8 draft pair, BF16 KV/recurrent state, MTP 3, native 262,144 context and
+prefix caching. MiaAI Lab's mmap patch kept the 47.68 GiB FP8 PLE table
+file-backed and read it over ATS.
+
+The explicit 16 GiB KV cache profiled 554,044 tokens, or 2.11 full-length
+262,144-token slots. Container health was green with zero restarts and no OOM.
+Model loading reported 72.98 GiB and 558.13 seconds; the existing PLE mmap file
+was reused.
+
+| Stage | Prompt tokens | TTFT | Effective input | Decode | Checks |
+| ---: | ---: | ---: | ---: | ---: | ---: |
+| R11 | 116,392 | 42.86 s | 2715.46 tok/s | 62.50 tok/s | 8/8 |
+| R12 | 137,352 | 8.86 s | 15500.26 tok/s | 68.18 tok/s | 8/8 |
+| R13 | 201,341 | 24.79 s | 8122.53 tok/s | 66.57 tok/s | 8/8 |
+| R14 | 258,310 | 23.20 s | 11132.82 tok/s | 68.13 tok/s | 8/8 |
+| **Mean** | — | **24.93 s** | **9367.77 tok/s** | **66.35 tok/s** | **32/32** |
+
+Each stage appended a newer eight-field target state among similar neighboring
+records, then forced one structured tool call. Effective input is
+`prompt_tokens / TTFT`; after R11 it includes prefix-cache reuse and is not a
+pure prefill-kernel rate. Cumulative speculative counters for this workload
+reported 429 accepted of 434 drafted tokens (98.85%, about 3.88 positions out
+of four). The machine-readable result is
+[`benchmarks/vllm030-mmap-longkv-2026-09-29.json`](../benchmarks/vllm030-mmap-longkv-2026-09-29.json).
+
+The identical four-stage test on the SGLang v0.5.20 profile scored 32/32 with
+2,288.21 mean effective input tok/s and 63.39 mean decode tok/s, but that run did
+not receive equivalent prefix-cache reuse. This is an end-to-end profile
+comparison, not an engine-only or PLE-only A/B.
+
 ## DGX Spark — patched vLLM
 
 Hardware: one GB10 DGX Spark, 128 GB unified memory. Runtime: the pinned vLLM

@@ -1,0 +1,65 @@
+{
+  "backend": "vLLM 0.30 MiaAI mmap",
+  "model": "qwen38-flash-next",
+  "target_tokens": 262144,
+  "passed_checks": 32,
+  "total_checks": 32,
+  "runs": [
+    {
+      "stage": 1,
+      "revision": 11,
+      "prompt_tokens": 116392,
+      "completion_tokens": 136,
+      "ttft": 42.86273133799841,
+      "input_tps": 2715.459243186793,
+      "output_tps": 62.501031961416615,
+      "passed_checks": 8,
+      "total_checks": 8,
+      "failed_checks": [],
+      "actual_failed_values": {},
+      "total_seconds": 45.09094288999768
+    },
+    {
+      "stage": 2,
+      "revision": 12,
+      "prompt_tokens": 137352,
+      "completion_tokens": 139,
+      "ttft": 8.86127280099754,
+      "input_tps": 15500.256349690293,
+      "output_tps": 68.1821272919701,
+      "passed_checks": 8,
+      "total_checks": 8,
+      "failed_checks": [],
+      "actual_failed_values": {},
+      "total_seconds": 10.942717610996624
+    },
+    {
+      "stage": 3,
+      "revision": 13,
+      "prompt_tokens": 201341,
+      "completion_tokens": 144,
+      "ttft": 24.787966744006553,
+      "input_tps": 8122.529858108752,
+      "output_tps": 66.57006087724626,
+      "passed_checks": 8,
+      "total_checks": 8,
+      "failed_checks": [],
+      "actual_failed_values": {},
+      "total_seconds": 26.999612712003
+    },
+    {
+      "stage": 4,
+      "revision": 14,
+      "prompt_tokens": 258310,
+      "completion_tokens": 139,
+      "ttft": 23.20256626199989,
+      "input_tps": 11132.820270102984,
+      "output_tps": 68.12711766010183,
+      "passed_checks": 8,
+      "total_checks": 8,
+      "failed_checks": [],
+      "actual_failed_values": {},
+      "total_seconds": 25.284781836002367
+    }
+  ]
+}

@@ -1,0 +1,80 @@
+name: qwen38-flash-next-vllm030-mmap
+
+services:
+  qwen38-flash-next:
+    image: vllm/vllm-openai:v0.30.0@sha256:8a69ffad015f138d7170c4ddc429e230a3bc1c1719f67e14324749df200a4b90
+    container_name: qwen38-flash-next-vllm030-mmap
+    init: true
+    restart: "no"
+    gpus: all
+    ipc: host
+    shm_size: 16gb
+    entrypoint: [/bin/bash, /patches/apply-and-serve.sh]
+    ports:
+      - "8000:8000"
+    environment:
+      TZ: UTC
+      VLLM_API_KEY: ${VLLM_API_KEY:?set VLLM_API_KEY in .env}
+      NVIDIA_DRIVER_CAPABILITIES: compute,utility
+      HF_HUB_OFFLINE: "1"
+      TRANSFORMERS_OFFLINE: "1"
+      VLLM_PLE_MMAP_DIR: /root/.cache/vllm/ple_mmap_v030
+      VLLM_PLE_MMAP_ADVICE: "1"
+      VLLM_MTP_DRAFT_VOCAB: /model/draft_vocab_65536.npy
+      VLLM_MTP_DRAFT_HEAD: /model/mtp_draft_head_65536_fp8.safetensors
+      VLLM_FP8_HYBRID: "1"
+      VLLM_USE_DEEP_GEMM: "0"
+      VLLM_USE_FLASHINFER_SAMPLER: "1"
+      MAMBA_SSM_CACHE_DTYPE: bfloat16
+    volumes:
+      - ${MODEL_DIR:?set MODEL_DIR in .env}:/model:ro
+      - ${CACHE_DIR:-./cache}:/root/.cache
+      - ./patches:/patches:ro
+    command:
+      - --model
+      - /model
+      - --served-model-name
+      - qwen38-flash-next
+      - --host
+      - 0.0.0.0
+      - --port
+      - "8000"
+      - --load-format
+      - safetensors
+      - --max-model-len
+      - "262144"
+      - --max-num-seqs
+      - "2"
+      - --gpu-memory-utilization
+      - "0.01"
+      - --kv-cache-memory-bytes
+      - "17179869184"
+      - --engram-config
+      - '{"cpu_offload":true}'
+      - --enable-prefix-caching
+      - --enable-prompt-tokens-details
+      - --enable-chunked-prefill
+      - --enable-logging-iteration-details
+      - --max-num-batched-tokens
+      - "8192"
+      - --no-enable-flashinfer-autotune
+      - --kv-cache-dtype
+      - auto
+      - --enable-auto-tool-choice
+      - --tool-call-parser
+      - qwen3_xml
+      - --reasoning-parser
+      - qwen3
+      - --default-chat-template-kwargs
+      - '{"enable_thinking":true}'
+      - --compilation-config
+      - '{"cudagraph_mode":"FULL_DECODE_ONLY","cudagraph_capture_sizes":[1,4]}'
+      - --speculative-config
+      - '{"method":"mtp","num_speculative_tokens":3,"max_model_len":262144}'
+    healthcheck:
+      test: [CMD, python3, -c, "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8000/health', timeout=5)"]
+      interval: 30s
+      timeout: 10s
+      retries: 5
+      start_period: 30m
+    stop_grace_period: 2m
