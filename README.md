@@ -9,7 +9,31 @@ Run Qwen3.8-Flash-Next on one NVIDIA DGX Spark or a sufficiently large
 Blackwell workstation. The project combines NVIDIA's official NVFP4 target
 checkpoint with locally converted FP8 side layers, an NVFP4 MTP expert graft,
 FP8 PLE mmap/offload and optional matched 65K FP8 draft heads. It publishes two
-checkpoint lanes and four validated runtime profiles across vLLM and SGLang.
+checkpoint lanes and validated runtime profiles across vLLM and SGLang.
+
+## Latest: pinned nightly with FP8 KV (2026-10-05)
+
+The current single-Spark profile uses official fixed vLLM nightly
+`0cbac6cd1305f710e12193596b27488397bcb205` (runtime
+`0.30.1rc1.dev558+g0cbac6cd1`), startup-mounted patches, SSD-backed FP8 PLE,
+**9 GiB FP8 E4M3 KV**, and BF16 recurrent state. Native context is 262,144;
+four admitted sequences share a **542,103-token KV pool** (2.07 full-length
+slots, not four full 256K requests). No custom image build or eager mode.
+
+An 8K-input/512-output, temperature-zero, single-stream benchmark with three
+warmups and three measured requests averaged **42.66 decode tok/s**, **2.753 s
+TTFT**, **2,974.94 effective input tok/s**, and **50.44% MTP acceptance**.
+Effective input is prompt tokens / TTFT, not pure GPU prefill. A separate
+synthetic creative/revision run reached 254,140 tokens and scored 48/48;
+this is bounded evidence, not a guarantee of quality equivalence.
+
+- [Complete nightly recipe and patches](recipes/vllm-nightly-fp8-mmap/README.md)
+- [Benchmark report, version pin and limitations](docs/NIGHTLY-FP8-KV-2026-10-05.md)
+- [Sanitized numerical export](benchmarks/nightly-fp8-kv-speed-2026-10-05.json)
+
+The older v0.30.0 + 16 GiB BF16-KV profile below is retained for rollback and
+historical comparison. Runtime, KV dtype and workloads changed; this is not
+a controlled FP8-versus-BF16 A/B. Model weights are unchanged.
 
 This repository extends
 [blazux/qwen3.8-Flash-DGX](https://github.com/blazux/qwen3.8-Flash-DGX)
@@ -128,7 +152,8 @@ while the matched 65K draft setup and measured Spark profile are in
 | MTP routed experts | Inferact per-expert NVFP4 donor | Inferact per-expert NVFP4 donor |
 | Reduced MTP head | optional BF16 or FP8 matched head | FP8 matched head recommended |
 | PLE/n-gram table | FP8 E4M3, NVMe mmap | FP8 E4M3, NVMe mmap |
-| Validated KV/recurrent state | BF16 | BF16 |
+| Main KV cache | historical BF16 | nightly FP8 E4M3; historical BF16 retained |
+| Recurrent/Mamba state | BF16 | BF16 |
 
 The 300 converted side linears cover GDN `in_proj_qkv`, `in_proj_z`, `out_proj`;
 QSA q/k/v/o; and shared-expert gate/up/down projections. `in_proj_ba`, norms,

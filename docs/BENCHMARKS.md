@@ -1,5 +1,16 @@
 # Performance evidence
 
+## Latest: official pinned nightly + FP8 KV (2026-10-05)
+
+One Spark, native 262144 context, 9 GiB FP8 E4M3 KV, BF16 recurrent state,
+file-backed FP8 PLE and MTP3. Three warmups, three measured 8K/512 requests,
+temperature 0, concurrency 1: **2974.94 effective input tok/s, 42.66 decode
+tok/s, 2.753 s TTFT, 14.733 s total, 50.44% MTP acceptance**.
+
+See [the complete nightly report](NIGHTLY-FP8-KV-2026-10-05.md) for the fixed
+image digest, per-run data, long-context 48/48 regression and limitations.
+The export does not establish cache-free prefill or a controlled KV-dtype A/B.
+
 This document keeps the detailed measurements out of the project entrance page.
 Results use different prompt lengths, runtimes and hosts unless explicitly
 described as paired. Do not treat the tables as one cross-platform leaderboard.

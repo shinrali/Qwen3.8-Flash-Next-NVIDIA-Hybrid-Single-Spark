@@ -1,0 +1,112 @@
+{
+  "createdAt": "2026-10-05T01:52:32Z",
+  "model": "qwen38-flash-next",
+  "speed": {
+    "aggregateInputTPS": 2974.891460835035,
+    "aggregateOutputTPS": 42.6570637467644,
+    "averageCompletionTokens": 512,
+    "averageInputTPS": 2974.9441718092617,
+    "averageMTPAcceptanceRate": 0.5043572984749455,
+    "averageOutputTPS": 42.66414192176803,
+    "averagePromptTokens": 8190.333333333333,
+    "averageTTFT": 2.7531536666666665,
+    "averageTotalSeconds": 14.733310208333334,
+    "batchElapsedSeconds": 44.431298959,
+    "batches": [
+      {
+        "completionTokens": 512,
+        "decodeSeconds": 12.116593542,
+        "elapsedSeconds": 14.987058209,
+        "index": 1,
+        "inputTPS": 2960.9273532219204,
+        "mtpAcceptanceRate": 0.5065359477124183,
+        "mtpSource": "vLLM /metrics",
+        "outputTPS": 42.17356951264479,
+        "prefillSeconds": 2.766363042,
+        "promptTokens": 8191,
+        "requests": 1
+      },
+      {
+        "completionTokens": 512,
+        "decodeSeconds": 12.056461666999999,
+        "elapsedSeconds": 14.867485292,
+        "index": 2,
+        "inputTPS": 2991.2031148798314,
+        "mtpAcceptanceRate": 0.4935275080906149,
+        "mtpSource": "vLLM /metrics",
+        "outputTPS": 42.383911143571176,
+        "prefillSeconds": 2.738028708,
+        "promptTokens": 8190,
+        "requests": 1
+      },
+      {
+        "completionTokens": 512,
+        "decodeSeconds": 11.76472075,
+        "elapsedSeconds": 14.576755458000001,
+        "index": 3,
+        "inputTPS": 2972.702047326034,
+        "mtpAcceptanceRate": 0.5132013201320133,
+        "mtpSource": "vLLM /metrics",
+        "outputTPS": 43.43494510908812,
+        "prefillSeconds": 2.7550692499999996,
+        "promptTokens": 8190,
+        "requests": 1
+      }
+    ],
+    "concurrency": 1,
+    "maxOutputTokens": 512,
+    "runs": [
+      {
+        "batchIndex": 1,
+        "completionTokens": 512,
+        "finishReason": "length",
+        "firstTokenOffset": 2.770844542,
+        "index": 1,
+        "inputTPS": 2960.9273532219204,
+        "lastTokenOffset": 14.887438084,
+        "mtpAcceptanceRate": 0.5065359477124183,
+        "outputTPS": 42.17356951264479,
+        "promptTokens": 8191,
+        "requestStartOffset": 0.0044815,
+        "totalSeconds": 14.883296917,
+        "ttft": 2.766363042
+      },
+      {
+        "batchIndex": 2,
+        "completionTokens": 512,
+        "finishReason": "length",
+        "firstTokenOffset": 2.741881292,
+        "index": 2,
+        "inputTPS": 2991.2031148798314,
+        "lastTokenOffset": 14.798342959,
+        "mtpAcceptanceRate": 0.4935275080906149,
+        "outputTPS": 42.383911143571176,
+        "promptTokens": 8190,
+        "requestStartOffset": 0.003852584,
+        "totalSeconds": 14.7948215,
+        "ttft": 2.738028708
+      },
+      {
+        "batchIndex": 3,
+        "completionTokens": 512,
+        "finishReason": "length",
+        "firstTokenOffset": 2.7583895419999998,
+        "index": 3,
+        "inputTPS": 2972.7020473260336,
+        "lastTokenOffset": 14.523110292,
+        "mtpAcceptanceRate": 0.5132013201320133,
+        "outputTPS": 43.43494510908812,
+        "promptTokens": 8190,
+        "requestStartOffset": 0.003320292,
+        "totalSeconds": 14.521812208,
+        "ttft": 2.75506925
+      }
+    ],
+    "targetInputTokens": 8192,
+    "temperatureMode": "0",
+    "totalCompletionTokens": 1536,
+    "totalPromptTokens": 24571,
+    "warmups": 3
+  },
+  "type": "speed"
+}
